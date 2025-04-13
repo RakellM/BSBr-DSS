@@ -2,4 +2,4 @@
 *.sql linguist-language=sql
 
 *.Rmd linguist-detectable=true
-*.Rmd linguist-language=Rmd
+*.Rmd linguist-language=R
