@@ -1,0 +1,753 @@
+---
+title: "Função de Distribuição Gamma" 
+subtitle: "Projeto Final"
+date: "2022-03-12"
+author: 
+  - "Francisco Moura Fé"
+  - "Marcos Alves"
+  - "Marcus Dias"
+  - "Raquel Marques"
+
+
+output: 
+#  html_document:
+#    theme: united
+#  prettydoc::html_pretty:
+#    theme: architect #prettydoc
+#  rmdformats::downcute:
+#  rmdformats::readthedown:
+#  rmdformats::html_clean:
+  rmdformats::robobook:
+    use_bookdown: TRUE
+    toc_depth: 3
+    toc_float: TRUE
+#    self_contained: true
+#    default_style: "dark"
+#    downcute_theme: "chaos"
+#    thumbnails: true
+#    lightbox: true
+#    gallery: false
+#    highlight: "pygments"
+    code_folding: hide
+
+
+---
+
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(cache = TRUE)
+
+```
+
+```{r include=FALSE}
+load = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "Hmisc",
+  "DescTools",
+  "esquisse",
+  "gridExtra",
+  "kableExtra"
+)
+#Instalar
+# lapply(load.pks, install.packages, character.only = TRUE)
+#Carregar
+lapply(load, require, character.only = TRUE)
+```
+
+
+# Introdução
+
+A *Distribuição Gama* é uma família de distribuições contínuas de probabilidade de dois parâmetros. É comumente utilizada para cálculos em estudos de sobrevivência.
+
+Definição: Uma váriavel aleatória $X$ tem distribuição Gama se sua densidade for dada por:
+
+$$
+  \begin{cases}
+  \ f(x) = \frac{ \beta }{ \Gamma( \alpha )} x^{ \alpha - 1} \mathrm{e}^{- \beta x} \ , \  x \geq 0 \\
+  \ f(x) = 0 \  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ , \  x < 0
+  \end{cases}   \ ,
+$$
+
+sendo $\alpha$ e $\beta$ dois parâmetros positivos e $\Gamma ( \alpha ) $ sendo a função matemática Gama, definida por:
+
+$$
+  \Gamma(\alpha ) = \int_0^\infty x^{ \alpha-1 } \mathrm{e}^{-x} \mathrm{d}x \ , \ \alpha > 0. \
+$$
+**Notação**: $X \sim \Gamma(\alpha , \beta)$
+
+## Casos Particulares
+
+* Para $\alpha = 1$ tem-se a distribuição exponencial
+
+$$
+  X \sim \Gamma(1,\beta) \implies X \sim Exp(\beta)
+$$
+* Para $\alpha = \frac{n}{2}$ , $n$ inteiro e $\beta = \frac{1}{2}$ , tem-se a distribuição qui=quadrado com $n$ graus de liberdade.
+
+$$
+  X \sim \Gamma\bigg(\frac{n}{2},\frac{1}{2}\bigg) \implies X \sim \chi^2_n 
+$$
+
+## Parametrizações mais usadas
+
+1. Com um parâmetro de forma $\kappa$ e um parametro de escala $\theta$.
+2. Com um parametro de forma $\alpha = \kappa$ e um parametro de escala inversa $\beta=\frac{1}{\theta}$, chamado parâmetro de taxa.
+3. Com um parâmetro de forma $\kappa$ e um parâmetro média $\mu=\frac{\kappa}{\beta}$.
+
+Para fins dessa demostração usaremos $\alpha \geq 2$ e $\beta \geq 1$  onde $\alpha \ , \ \beta \in \mathbb{Z}$ , 
+
+
+# Gráficos da Função Densidade de Probabilidade
+
+Nesta seção é possível ver o comportamento da função de densidade da função Gama para differentes valores de $\alpha$ e $\beta$.
+
+```{r}
+# amostra aleatória
+x <- seq(0,20, length.out = 5000)
+```
+
+## Caso 1: Exponencial
+$f(x)$ para $\alpha = 1$ e $1 \leq \beta \leq 4$
+
+```{r}
+fx_1.1 <- dgamma(x, shape=1, scale=1 )
+fx_1.2 <- dgamma(x, shape=1, scale=2 )
+fx_1.3 <- dgamma(x, shape=1, scale=3 )
+fx_1.4 <- dgamma(x, shape=1, scale=4 )
+
+```
+
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, fx_1.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,0.5),
+     ylab=expression(paste(f(x))),
+     col=color_vector[1]
+     )
+lines(x,fx_1.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,fx_1.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,fx_1.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("topright", c(expression(paste(alpha, "=", 1,",",beta, "=", 1)),
+                     expression(paste(alpha, "=", 1,",",beta, "=", 2)),
+                     expression(paste(alpha, "=", 1,",",beta, "=", 3)),
+                     expression(paste(alpha, "=", 1,",",beta, "=", 4))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+## Caso 2: Qui-Quadrado
+$f(x)$ para $\alpha = \frac{n}{2}$ e $\beta = \frac{1}{2}$, com $3 \leq n \leq 6$
+
+```{r}
+fx_n.1 <- dgamma(x, shape=3/2, scale=1/2 )
+fx_n.2 <- dgamma(x, shape=4/2, scale=1/2 )
+fx_n.3 <- dgamma(x, shape=5/2, scale=1/2 )
+fx_n.4 <- dgamma(x, shape=6/2, scale=1/2 )
+
+```
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, fx_n.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,1),
+     xlim=c(0,5),
+     ylab=expression(paste(f(x))),
+     col=color_vector[1]
+     )
+lines(x,fx_n.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,fx_n.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,fx_n.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("topright", c(expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 3)),
+                     expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 4)),
+                     expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 5)),
+                     expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 6))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+## Caso 3
+$f(x)$ para $\alpha = 2$ e $1 \leq \beta \leq 4$
+
+```{r}
+fx_2.1 <- dgamma(x, shape=2, scale=1 )
+fx_2.2 <- dgamma(x, shape=2, scale=2 )
+fx_2.3 <- dgamma(x, shape=2, scale=3 )
+fx_2.4 <- dgamma(x, shape=2, scale=4 )
+
+
+```
+
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, fx_2.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,0.5),
+     ylab=expression(paste(f(x))),
+     col=color_vector[1]
+     )
+lines(x,fx_2.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,fx_2.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,fx_2.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("topright", c(expression(paste(alpha, "=", 2,", ",beta, "=", 1)),
+                     expression(paste(alpha, "=", 2,", ",beta, "=", 2)),
+                     expression(paste(alpha, "=", 2,", ",beta, "=", 3)),
+                     expression(paste(alpha, "=", 2,", ",beta, "=", 4))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+## Caso 4
+$f(x)$ para $\alpha = 3$ e $1 \leq \beta \leq 4$
+
+```{r}
+
+fx_3.1 <- dgamma(x, shape=3, scale=1 )
+fx_3.2 <- dgamma(x, shape=3, scale=2 )
+fx_3.3 <- dgamma(x, shape=3, scale=3 )
+fx_3.4 <- dgamma(x, shape=3, scale=4 )
+
+```
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, fx_3.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,0.5),
+     ylab=expression(paste(f(x))),
+     col=color_vector[1]
+     )
+lines(x,fx_3.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,fx_3.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,fx_3.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("topright", c(expression(paste(alpha, "=", 3,", ",beta, "=", 1)),
+                     expression(paste(alpha, "=", 3,", ",beta, "=", 2)),
+                     expression(paste(alpha, "=", 3,", ",beta, "=", 3)),
+                     expression(paste(alpha, "=", 3,", ",beta, "=", 4))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+# Gráficos da Função de Distribuição Acumulada
+
+
+
+## Caso 1: Exponencial
+$F(x)$ para $\alpha = 1$ e $1 \leq \beta \leq 4$
+
+```{r}
+Fx_1.1 <- pgamma(x, shape=1, scale=1 )
+Fx_1.2 <- pgamma(x, shape=1, scale=2 )
+Fx_1.3 <- pgamma(x, shape=1, scale=3 )
+Fx_1.4 <- pgamma(x, shape=1, scale=4 )
+
+```
+
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, Fx_1.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,1),
+     ylab=expression(paste(F(x))),
+     col=color_vector[1]
+     )
+lines(x,Fx_1.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,Fx_1.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,Fx_1.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("bottomright", c(expression(paste(alpha, "=", 1,", ",beta, "=", 1)),
+                        expression(paste(alpha, "=", 1,", ",beta, "=", 2)),
+                        expression(paste(alpha, "=", 1,", ",beta, "=", 3)),
+                        expression(paste(alpha, "=", 1,", ",beta, "=", 4))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+## Caso 2: Qui-Quadrado
+$F(x)$ para $\alpha = \frac{n}{2}$ e $\beta = \frac{1}{2}$, com $3 \leq n \leq 6$
+
+```{r}
+Fx_n.1 <- pgamma(x, shape=3/2, scale=1/2 )
+Fx_n.2 <- pgamma(x, shape=4/2, scale=1/2 )
+Fx_n.3 <- pgamma(x, shape=5/2, scale=1/2 )
+Fx_n.4 <- pgamma(x, shape=6/2, scale=1/2 )
+
+```
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, Fx_n.1, type = "l", lwd=2, lty=1,
+    # ylim=c(0,1),
+    # xlim=c(0,5),
+     ylab=expression(paste(F(x))),
+     col=color_vector[1]
+     )
+lines(x,Fx_n.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,Fx_n.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,Fx_n.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("topright", c(expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 3)),
+                     expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 4)),
+                     expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 5)),
+                     expression(paste(alpha, "=", n/2,", ",beta, "=", 1/2,", ", n, "=", 6))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+
+## Caso 3
+$F(x)$ para $\alpha = 2$ e $1 \leq \beta \leq 4$
+
+```{r}
+Fx_2.1 <- pgamma(x, shape=2, scale=1 )
+Fx_2.2 <- pgamma(x, shape=2, scale=2 )
+Fx_2.3 <- pgamma(x, shape=2, scale=3 )
+Fx_2.4 <- pgamma(x, shape=2, scale=4 )
+
+
+```
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, Fx_2.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,1),
+     ylab=expression(paste(F(x))),
+     col=color_vector[1]
+     )
+lines(x,Fx_2.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,Fx_2.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,Fx_2.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("bottomright", c(expression(paste(alpha, "=", 2,", ",beta, "=", 1)),
+                        expression(paste(alpha, "=", 2,", ",beta, "=", 2)),
+                        expression(paste(alpha, "=", 2,", ",beta, "=", 3)),
+                        expression(paste(alpha, "=", 2,", ",beta, "=", 4))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+## Caso 4
+$F(x)$ para $\alpha = 3$ e $1 \leq \beta \leq 4$
+
+```{r}
+Fx_3.1 <- pgamma(x, shape=3, scale=1 )
+Fx_3.2 <- pgamma(x, shape=3, scale=2 )
+Fx_3.3 <- pgamma(x, shape=3, scale=3 )
+Fx_3.4 <- pgamma(x, shape=3, scale=4 )
+
+```
+
+```{r, echo=FALSE}
+color_vector <- c("black", "blue", "red" , "orange")
+plot(x, Fx_3.1, type = "l", lwd=2, lty=1,
+     ylim=c(0,1),
+     ylab=expression(paste(F(x))),
+     col=color_vector[1]
+     )
+lines(x,Fx_3.2,type = "l", lwd=2, lty=1, col=color_vector[2])
+lines(x,Fx_3.3,type = "l", lwd=2, lty=1, col=color_vector[3])
+lines(x,Fx_3.4,type = "l", lwd=2, lty=1, col=color_vector[4])
+legend("bottomright", c(expression(paste(alpha, "=", 3,", ",beta, "=", 1)),
+                        expression(paste(alpha, "=", 3,", ",beta, "=", 2)),
+                        expression(paste(alpha, "=", 3,", ",beta, "=", 3)),
+                        expression(paste(alpha, "=", 3,", ",beta, "=", 4))
+                     ), 
+       col = color_vector, bty="n", lty=c(1,1,1,1), lwd=c(2,2,2,2), inset = 0.08)
+```
+
+# Teorema Central do Limite (TCL)
+
+O TCL é fundamental na estatítica pois afirma que confome o tamanho da amostra aumenta, a distribuição amostral da sua média aproxima-se cada vez mais da distribuição Normal.
+
+Resumidamente, se temos uma sequência de variáveis aleatórias independentes e identicamente distribuidas (iid) $(X_1,X_2,...,X_n)$ com $E[X_i] = \mu$ finito e $\text{Var}[X_i] = \sigma^2 > 0$ finita, podemos enunciar o TCL como:
+$$
+  \sqrt[]{n} \ \Bigg[ \Bigg( \frac{1}{n} \displaystyle\sum_{i=1}^{n} X_i  \Bigg) - \mu \Bigg] \ \ 
+  \xrightarrow[\text{  }]{\text{ d }} \ \ 
+  \mathcal{N}(0,\sigma^2)
+$$
+
+# Teste Shapiro-Wilk para Normalidade
+
+As hipóteses do teste são:
+
+$$
+  \begin{cases}
+  H_0: \text{ A amostra veio de uma população normalmente distribuída} \\
+  H_1: \text{ A amostra não veio de uma população normalmente distribuída}
+  \end{cases}
+$$
+A estatística de teste é:
+
+$$
+  W = \frac { \bigg( \displaystyle\sum_{i=1}^{n} a_i \ x_{(i)} \bigg) ^2}
+            {\displaystyle\sum_{i=1}^{n} (x_i-\bar{x})^2}
+$$
+onde
+
+* $x_{(i)}$ é a $i$-ésima estatística de ordem, i.e., o $i$-ésimo menor número da amostra
+* $\bar{x}=\frac{(x_1+x_2+...+x_n)}{n}$ é a média da amostra
+
+Os coeficientes $a_i$ são dados por:
+
+$$
+  (a_1,a_2,...,a_n)=\frac{m^T \ V^{-1}}{C} \ ,
+$$
+onde $C$ é uma norma de votor:
+
+$$
+  C = ||V^{-1} \ m || = (m^T \ V^{-1} \ V^{-1} \ m)^{\frac{1}{2}}
+$$
+e o vetor $m$,
+
+$$
+  m=(m_1,m_2,...,m_n)^T
+$$
+é composto pelos valores esperados das estatísticas de ordem de variáveis aleatórias independentes e distribuídas de forma idêntica, amostradas a partir da distribuição normal padrão.
+
+Finalmente, $V$ a matriz de covariância dessas estatísticas de ordem normal.
+
+
+# Projeto Final
+
+Vamos considerar a função Gama para valores diferentes dos casos particulares, por exemplo $\alpha=2$ e $\beta=3$.
+
+
+##  Exemplo
+Para o caso em que $\alpha=2$ e $\beta=3$.
+
+```{r}
+# Temos que fazer com reposição pois do contrário teria uma dependência, contradizendo o TCL.
+
+# Definimos um número t de tentativas que será rodado com amostras que tem o mesmo número de elementos.
+t <- 30
+# Vamos gerar um vetor de items aleatórios que seguem uma distribuição Gama com parâmetros 2 e 3:
+alpha <- 2
+beta <- 3
+pop <- rgamma(t, alpha, beta)
+
+# Queremos testar que conforme o número de elementos de cada amostra cresce, maior é a probabilidade de convergência para uma distribuição normal.
+n <- c(4:103)
+
+# Criamos vetores para salvar os items do loop (exceto a amostra utilizada).
+mean_vector <- numeric(t)
+
+test_vector <- data.frame(cbind(c(min(n):max(n)),c(min(n):max(n)),c(min(n):max(n))))
+names(test_vector) <- c("Sample_Size","Statistic_W", "P_Value")
+
+sample_vector <- data.frame(matrix(0, ncol = length(n), nrow = t ))
+
+# 
+
+
+
+
+
+```
+
+
+### Gráficos: Histograma e Densidade
+Abaixo temos algumas das amostras que convegiram para a Normal de acordo com o teste de Shapiro-Wilk.\
+(Para que não ficasse muito massante, decidiu-se por mostrar somente as amostras que convergiram para a Normal
+cujo p-valor do teste de Shapiro-Wilk fosse maior ou igual a 95%).\
+
+```{r , warning=FALSE}
+# Loop para escolher as amostras e ir aumentando o tamanho das amostras
+for (j in 1:length(n)){
+  for (i in 1:t){
+    mean_vector[i] <- mean(sample(pop , size=n[j], replace=TRUE))
+    sample_vector[i,j] <- mean_vector[i]
+  }
+  
+  test_vector[j,2] <- shapiro.test(sample_vector[,j])$statistic 
+  test_vector[j,3] <- shapiro.test(sample_vector[,j])$p.value
+  pv <- shapiro.test(sample_vector[,j])$p.value
+
+  g_hist_densidade = 
+    ggplot(data.frame(sample_vector[,j]), aes(x = sample_vector[,j])) +
+    geom_histogram(color = "black",
+                   fill = "lightblue",
+                   bins = 10,
+                   aes(y = (..count..) / sum(..count..))) +
+    geom_density(col = 2, size = 1, aes(y = 50 * (..count..) /  sum(..count..))) +
+    ggtitle(paste("Histograma e Curva de Densidade - Tamanho da Amostra = ", n[j])) +
+    labs(
+      subtitle=paste("Shapiro-Wilk p-value =", round(pv,2))
+    ) +
+    xlab("Média") +
+    ylab("Frequência relativa") 
+
+if (pv >= 0.95)  {
+  print(g_hist_densidade)
+# ggplotly(g_hist_densidade)  
+}
+
+}
+
+```
+
+
+```{r}
+# Conferir o p-valor dos testes para ver qual converge para a normal
+test_vector = test_vector %>% mutate(
+  pv_aceito = case_when(
+    P_Value >= 0.05 ~ "Sim",
+    P_Value < 0.05 ~ "Não"
+  )
+)
+
+# Criar intervalos com a quantidade de items na amostra
+test_vector = test_vector %>% mutate(
+  intervalo_amostra1 = case_when(
+    Sample_Size <= 10 ~ "01. [0 ; 10]",
+    Sample_Size > 10 & Sample_Size <= 20 ~ "02. (10 ; 20]",
+    Sample_Size > 20 & Sample_Size <= 30 ~ "03. (20 ; 30]",
+    Sample_Size > 30 & Sample_Size <= 40 ~ "04. (30 ; 40]",
+    Sample_Size > 40 & Sample_Size <= 50 ~ "05. (40 ; 50]",
+    Sample_Size > 50 & Sample_Size <= 60 ~ "06. (50 ; 60]",
+    Sample_Size > 60 & Sample_Size <= 70 ~ "07. (60 ; 70]",
+    Sample_Size > 70 & Sample_Size <= 80 ~ "08. (70 ; 80]",
+    Sample_Size > 80 & Sample_Size <= 90 ~ "09. (80 ; 90]",
+    Sample_Size > 90 & Sample_Size <= 100 ~ "10. (90 ; 100]",
+    Sample_Size > 100 ~ "11. (100 ; +inf)"
+  )
+)
+test_vector$int_group1 <- as.numeric(substr(test_vector$intervalo_amostra1,1,2))
+
+# Criar intervalos com a quantidade de items na amostra
+test_vector = test_vector %>% mutate(
+  intervalo_amostra2 = case_when(
+    Sample_Size <= 20 ~ "01. [0 ; 10]",
+    Sample_Size > 20 & Sample_Size <= 40 ~ "02. (20 ; 40]",
+    Sample_Size > 40 & Sample_Size <= 60 ~ "03. (40 ; 60]",
+    Sample_Size > 60 & Sample_Size <= 80 ~ "04. (60 ; 80]",
+    Sample_Size > 80 & Sample_Size <= 100 ~ "05. (80 ; 100]",
+    Sample_Size > 100 ~ "06. (100 ; +inf)"
+  )
+)
+test_vector$int_group2 <- as.numeric(substr(test_vector$intervalo_amostra2,1,2))
+```
+
+# Conclusão
+
+```{r, echo=FALSE}
+test_converged <- test_vector[test_vector$pv_aceito == "Sim",]$Sample_Size
+test_not_converged <- test_vector[test_vector$pv_aceito == "Não",]$Sample_Size
+
+describe_table <- describe(test_converged)
+#names(describe_table)
+
+converged <- as.numeric(describe_table$counts[1])
+converged_pct <- round( (as.numeric(describe_table$counts[1])) / length(n) , 2) * 100
+
+#converged
+#converged_pct
+
+```
+
+Geramos elementos aleatórios de uma função Gama $X \sim \Gamma(\alpha, \beta)$ com parâmetros $\alpha=$ `r alpha` e $\beta=$ `r beta`. \
+Utilizamos `r t` tentativas $(t)$ para cada tamanho amostral $n$ variando de `r min(n)` até `r max(n)`. \
+Abaixo está a tabela summarizada das médias das amostras considerando p-valor aceitável maiores ou iguas a 5% (pv_aceito $\geq$ 5%). \
+Dessa maneira, temos `r converged` amostras das `r length(n)` que covergiram, ou seja `r converged_pct`%.
+
+```{r}
+# describe(test_vector$pv_aceito) 
+test_vector %>%
+  select(pv_aceito, P_Value) %>%
+  group_by(pv_aceito) %>%
+  summarise(
+    quantidade = n(),
+    percentual = n() / length(n) ,
+    media = mean(P_Value), 
+    mediana = median(P_Value),
+    moda = Mode(P_Value),
+    cv = sd(P_Value) / media * 100,
+  ) %>%
+  kbl %>% kable_paper(full_width = FALSE)
+
+# kable options: classic / classic_2 / minimal / material / material_dark / paper
+```
+
+## Intervalo do número de elementos por amostra
+
+```{r}
+
+converged_s1 <- min(test_converged)
+#converged_s1
+
+```
+Nesse exemplo, o primeiro tamanho de amostra a covergir foi $n=$ `r converged_s1`. \
+
+Analisando amostras como intervalo, podemos ver *que no geral* conforme o tamanho da amostra aumenta, o número de amostras que convergem para a Normal aumenta.
+
+```{r, warning=FALSE, message=FALSE}
+
+test_vector %>%
+  select(int_group2, intervalo_amostra2, pv_aceito, P_Value) %>%
+  group_by(intervalo_amostra2, pv_aceito) %>%
+  summarise(
+    quantidade = n(),
+    percentual = n() / length(n) ,
+    media = mean(P_Value), 
+    mediana = median(P_Value),
+    moda = Mode(P_Value),
+    cv = sd(P_Value) / media * 100,
+  ) %>%
+  arrange(intervalo_amostra2, desc(pv_aceito)) %>% 
+  kbl %>%
+  kable_paper(full_width = TRUE)
+
+```
+
+## Amostras que convergiram
+
+Abaixo escolheu-se aleatóriamente uma das amostras que convergiram de acordo com o teste de Shapiro-Wilk.
+
+```{r}
+c1 <- sample(test_converged, 1 , replace=FALSE)
+c1.a <- c1 - ( max(n) - length(n) )
+pv.c1 <- round(test_vector[c1.a,3],2)
+```
+
+```{r, echo=FALSE}
+g_c1 = 
+  ggplot(data.frame(sample_vector[,c1.a]), aes(x = sample_vector[,c1.a]) ) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..) ) ) +
+  geom_density(col = 2, size = 1, aes(y = 50 * (..count..) /  sum(..count..) ) ) +
+#  ggtitle(paste("Histograma e Curva de Densidade - Tamanho da Amostra = ", c1 ) ) +
+#  ggsubtitle( paste("Shapiro-Wilk p-value =", pv.c1, " " ) ) +
+  xlab("Média") +
+  ylab("Frequência relativa") 
+
+ggplotly(g_c1) %>%
+  layout(title = list(text = paste0(
+    paste("Histograma e Curva de Densidade - Tamanho da Amostra = ", c1 ) ,
+    '<br>',
+    '<sup>',
+    paste("Shapiro-Wilk p-value =", pv.c1, " " ) ,'</sup>')))
+```
+
+## Amostras que não convergiram
+
+Abaixo escolheu-se aleatóriamente uma das amostras que não convergiram de acordo com o teste de Shapiro-Wilk.
+
+```{r}
+nc1 <- sample(test_not_converged, 1 , replace=FALSE) 
+nc1.a <- nc1 - ( max(n) - length(n) )
+pv.nc1 <- round(test_vector[nc1.a,3],2)
+```
+
+
+```{r, echo=FALSE}
+g_nc1 = 
+  ggplot(data.frame(sample_vector[,nc1.a]), aes(x = sample_vector[,nc1.a]) ) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..) ) ) +
+  geom_density(col = 2, size = 1, aes(y = 50 * (..count..) /  sum(..count..) ) ) +
+#  ggtitle(paste("Histograma e Curva de Densidade - Tamanho da Amostra = ", nc1 ) ) +
+#  ggsubtitle( paste("Shapiro-Wilk p-value =", pv.nc1, " " ) ) +
+  xlab("Média") +
+  ylab("Frequência relativa") 
+
+ggplotly(g_nc1) %>%
+  layout(title = list(text = paste0(
+    paste("Histograma e Curva de Densidade - Tamanho da Amostra = ", nc1 ) ,
+    '<br>',
+    '<sup>',
+    paste("Shapiro-Wilk p-value =", pv.nc1, " " ) ,'</sup>')))
+```
+
+# Apêndice
+
+## Todos os gráficos
+
+```{r, echo=FALSE}
+for (j in 1:length(n)){
+  g_hist_densidade = 
+    ggplot(data.frame(sample_vector[,j]), aes(x = sample_vector[,j])) +
+    geom_histogram(color = "black",
+                   fill = "lightblue",
+                   bins = 10,
+                   aes(y = (..count..) / sum(..count..))) +
+    geom_density(col = 2, size = 1, aes(y = 50 * (..count..) /  sum(..count..))) +
+    ggtitle(paste("Histograma e Curva de Densidade - Tamanho da Amostra = ", n[j])) +
+    labs(
+      subtitle=paste("Shapiro-Wilk p-value =",  round(test_vector[j,3],2) )
+    ) +
+    xlab("Média") +
+    ylab("Frequência relativa") 
+  
+
+    print(g_hist_densidade)
+    # ggplotly(g_hist_densidade)  
+  
+}
+
+```
+
+
+
+
+
+
+```{r}
+############################################################################
+## deletar no projeto principal
+for (j in 1:length(n)){
+  par(mfrow=c(2,1))
+  x1 <- sample_vector[,5]
+  hist(x1,
+     probability = TRUE ,
+     ylab="Densidade",
+     xlab="Médias",
+     main=c("Histograma das Médias Amostrais de uma Função Gamma " , 
+            paste("Tamanho da Amostra = ", 100)) ,
+     col="lightblue"
+  )
+lines(density(x1), col = "red", lwd = 2) # Density 
+x2 <- seq(min(x1), max(x1), length = 40)
+f <- dnorm(x2, mean(x1), sd(x1))
+lines(x2, f, col = "blue", lwd = 2) # Normal
+legend("topright", c("Histogram", "Density", "Normal"), box.lty = 0,
+       lty = 1, col = c("lightblue", "red", "blue"), lwd = c(1, 2, 2))
+
+test_vector[j,] %>% kbl %>% kable_material_dark(full_width = F)
+
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
