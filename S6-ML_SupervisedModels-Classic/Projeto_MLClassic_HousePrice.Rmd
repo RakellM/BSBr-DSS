@@ -1,0 +1,2446 @@
+---
+title: "ML Modelos Supervisionados Clássicos" 
+subtitle: "Projeto Final (2) - House Prices"
+date: "2022-06-30"
+author: 
+  - "Francisco Moura Fé"
+  - "Marcos Alves"
+  - "Marcus Dias"
+  - "Raquel Marques"
+
+output:
+  rmdformats::robobook:
+    use_bookdown: FALSE
+    toc_depth: 5
+    toc_float: TRUE
+    code_folding: hide
+
+---
+
+# Preparação Inicial
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+options(scipen=10000)
+```
+
+Definir diretório e pacotes necessários.
+
+```{r packages1, eval=FALSE}
+load.pks = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "tidyr",
+  "nortest",
+  "gridExtra",
+  "kableExtra",
+  "visdat",
+  "stringr",
+  "mlbench",
+  "caret",
+  "GGally",
+  "RColorBrewer",
+  "ROCR",
+  "pROC",
+  "rmarkdown",
+  "qqplotr",
+  "reshape2",
+  "ggfortify",
+  "car",
+  "vip",
+  "MASS"
+)
+
+lapply(load.pks, require, character.only = TRUE)
+```
+
+
+
+```{r packages2, include=FALSE}
+## Carregar Pacotes
+
+load.pks = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "tidyr",
+  #"Hmisc",
+  #"DescTools",
+  "nortest",
+  #"esquisse",
+  "gridExtra",
+  "kableExtra",
+  "visdat",
+  "stringr",
+  "mlbench",
+  "caret",
+  "GGally",
+  "RColorBrewer",
+  "ROCR",
+  "pROC",
+  "rmarkdown",
+  #"formattable",
+  "qqplotr",
+  "reshape2",
+  "ggfortify",
+  "car",
+  "vip",
+  "MASS"
+  
+)
+
+if(sum(as.numeric(!load.pks %in% installed.packages())) != 0){
+  instalation <- load.pks[!load.pks %in% installed.packages()]
+  for(i in 1:length(instalation)) {
+    install.packages(instalation, dependencies = T)
+    break()}
+  sapply(load.pks, require, character = T) 
+} else {
+  sapply(load.pks, require, character = T) 
+}
+```
+
+
+```{r load-path-titanic, include=FALSE}
+# DataSet directory
+path <- c("C:\\0. R\\MBA\\DS&S\\M6 - ML Modelos supervisionados clássicos\\2022-06-04\\Projeto\\Projeto")
+
+setwd(path)
+
+getwd()
+```
+
+# House Prices
+
+https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques\
+
+# Entendimento do Negócio [Business Understanding]
+
+## Objetivo
+
+O objetivo é prever o perço final de uma casa utilizando o banco de dados que contem uma lista de casas em Ames, Iowa. Esse banco de dados conta com 79 variáveis explicativas que ajudam a determinar o preço das casas.\
+\
+
+# Entendimento dos Dados [Data Understanding]
+
+## Descrição das Variáveis
+
+<span style="color: blue;">**train.csv**</span> - 
+Registros de cerca de metade (~1460) das casas.
+
+- *Id* - Um ID exclusivo para cada casa.
+\
+- *MSSubClass* - Identifica o tipo de habitação.
+  + 20: 1-STORY 1946 & NEWER ALL STYLES
+  + 30: 1-STORY 1945 & OLDER
+  + 40: 1-STORY W/FINISHED ATTIC ALL AGES
+  + 45: 1-1/2 STORY - UNFINISHED ALL AGES
+  + 50: 1-1/2 STORY FINISHED ALL AGES
+  + 60: 2-STORY 1946 & NEWER
+  + 70: 2-STORY 1945 & OLDER
+  + 75: 2-1/2 STORY ALL AGES
+  + 80: SPLIT OR MULTI-LEVEL
+  + 85: SPLIT FOYER
+  + 90: DUPLEX - ALL STYLES AND AGES
+  + 120: 1-STORY PUD (Planned Unit Development) - 1946 & NEWER
+  + 150: 1-1/2 STORY PUD - ALL AGES
+  + 160: 2-STORY PUD - 1946 & NEWER
+  + 180: PUD - MULTILEVEL - INCL SPLIT LEV/FOYER
+  + 190: 2 FAMILY CONVERSION - ALL STYLES AND AGES\
+\
+- *MSZoning* - Identifica a área em que está situado o imóvel.
+  + A: Agriculture
+  + C: Commercial
+  + FV: Floating Village Residential
+  + I: Industrial
+  + RH: Residential High Density
+  + RL: Residential Low Density
+  + RP: Residential Low Density Park
+  + RM: Residential Medium Density\
+\
+- *LotFrontage* - Distância em pés da área da frente da casa até a rua.
+\
+- *LotArea* -  Tamanho da casa em pés quadrados.
+\
+- *Street* - Identifica o tipo de rua que dá acesso à propriedade.
+  + Grvl: Gravel
+  + Pave: Paved\
+\
+- *Alley* - Identifica o tipo de beco/ruela que dá acesso à propriedade.
+  + Grvl: Gravel
+  + Pave:	Paved
+  + NA: No alley access\
+\
+- *LotShape* - Identifica o formato do terreno da propriedade.
+  + Reg: Regular	
+  + IR1: Slightly irregular
+  + IR2: Moderately Irregular
+  + IR3: Irregular\
+\
+- *LandContour* - Identifica o quao plano é o terreno da propriedade.
+  + Lvl: Near Flat/Level
+  + Bnk: Banked - Quick and significant rise from street grade to building
+  + HLS: Hillside - Significant slope from side to side
+  + Low: Depression\
+\
+- *Utilities* - Identifica o tipo de utilidades disponíveis.
+  + AllPub: All public Utilities (E,G,W,& S)
+  + NoSewr: Electricity, Gas, and Water (Septic Tank)
+  + NoSeWa: Electricity and Gas Only
+  + ELO: Electricity only
+\
+- *LotConfig* - Identifica a configuração do terreno.
+  + Inside: Inside lot
+  + Corner: Corner lot
+  + CulDSac: Cul-de-sac
+  + FR2: Frontage on 2 sides of property
+  + FR3: Frontage on 3 sides of property\
+\
+- *LandSlope* - Identifica o declive da propriedade.
+  + Gtl: Gentle slope
+  + Mod: Moderate Slope
+  + Sev: Severe Slope\
+\
+- *Neighborhood* - Identifica as localidades físicas dentro dos limites da cidade de Ames.
+  + Blmngtn: Bloomington Heights
+  + Blueste: Bluestem
+  + BrDale: Briardale
+  + BrkSide: Brookside
+  + ClearCr: Clear Creek
+  + CollgCr: College Creek
+  + Crawfor: Crawford
+  + Edwards: Edwards
+  + Gilbert: Gilbert
+  + IDOTRR: Iowa DOT and Rail Road
+  + MeadowV: Meadow Village
+  + Mitchel: Mitchell
+  + Names: North Ames
+  + NoRidge: Northridge
+  + NPkVill: Northpark Villa
+  + NridgHt: Northridge Heights
+  + NWAmes: Northwest Ames
+  + OldTown: Old Town
+  + SWISU: South & West of Iowa State University
+  + Sawyer: Sawyer
+  + SawyerW: Sawyer West
+  + Somerst: Somerset
+  + StoneBr: Stone Brook
+  + Timber: Timberland
+  + Veenker: Veenker\
+\
+- *Condition1* - Identifica a proximidade a condições diversas.
+  + Artery: Adjacent to arterial street
+  + Feedr: Adjacent to feeder street
+  + Norm: Normal
+  + RRNn: Within 200' of North-South Railroad
+  + RRAn: Adjacent to North-South Railroad
+  + PosN: Near positive off-site feature--park, greenbelt, etc.
+  + PosA: Adjacent to postive off-site feature
+  + RRNe: Within 200' of East-West Railroad
+  + RRAe: Adjacent to East-West Railroad\
+\
+- *Condition2* - Identifica a proximidade a condições diversas (se mais de uma está presente).
+  + Artery: Adjacent to arterial street
+  + Feedr: Adjacent to feeder street
+  + Norm: Normal
+  + RRNn: Within 200' of North-South Railroad
+  + RRAn: Adjacent to North-South Railroad
+  + PosN: Near positive off-site feature--park, greenbelt, etc.
+  + PosA: Adjacent to postive off-site feature
+  + RRNe: Within 200' of East-West Railroad
+  + RRAe: Adjacent to East-West Railroad\
+\
+- *BldgType* - Identfica o tipo de habitação.
+  + 1Fam: Single-family Detached
+  + 2FmCon: Two-family Conversion; originally built as one-family dwelling
+  + Duplx: Duplex
+  + TwnhsE: Townhouse End Unit
+  + TwnhsI: Townhouse Inside Unit\
+\
+- *HouseStyle* - Identifica o estilo da habitação.
+  + 1Story: One story
+  + 1.5Fin: One and one-half story: 2nd level finished
+  + 1.5Unf: One and one-half story: 2nd level unfinished
+  + 2Story: Two story
+  + 2.5Fin: Two and one-half story: 2nd level finished
+  + 2.5Unf: Two and one-half story: 2nd level unfinished
+  + SFoyer: Split Foyer
+  + SLvl: Split Level\
+\
+- *OverallQual* - Avaliação geral do material e acabamento da casa.
+  + 10: Very Excellent
+  + 9: Excellent
+  + 8: Very Good
+  + 7: Good
+  + 6: Above Average
+  + 5: Average
+  + 4: Below Average
+  + 3: Fair
+  + 2: Poor
+  + 1: Very Poor\
+\
+- *OverallCond* - Avaliação geral da condição da casa.
+  + 10: Very Excellent
+  + 9: Excellent
+  + 8: Very Good
+  + 7: Good
+  + 6: Above Average
+  + 5: Average
+  + 4: Below Average
+  + 3: Fair
+  + 2: Poor
+  + 1: Very Poor\
+\
+- *YearBuilt* - Ano em que a casa foi contruída.
+\
+- *YearRemodAdd* - Ano em que a casa foi remodelada (será igual a da construção se nenhuma adição ou remodelagem foi feita).
+\
+- *RoofStyle* - Identifica o tipo de telhado.
+  + Flat: Flat
+  + Gable: Gable
+  + Gambrel: Gabrel (Barn)
+  + Hip: Hip
+  + Mansard: Mansard
+  + Shed: Shed\
+\
+- *RoofMatl* - Itentifica o tipo e material do telhado.
+  + ClyTile: Clay or Tile
+  + CompShg: Standard (Composite) Shingle
+  + Membran: Membrane
+  + Metal: Metal
+  + Roll: Roll
+  + Tar&Grv: Gravel & Tar
+  + WdShake: Wood Shakes
+  + WdShngl: Wood Shingles\
+\
+- *Exterior1st* - Identifica o acabamento externo da casa.
+  + AsbShng: Asbestos Shingles
+  + AsphShn: Asphalt Shingles
+  + BrkComm: Brick Common
+  + BrkFace: Brick Face
+  + CBlock: Cinder Block
+  + CemntBd: Cement Board
+  + HdBoard: Hard Board
+  + ImStucc: Imitation Stucco
+  + MetalSd: Metal Siding
+  + Other: Other
+  + Plywood: Plywood
+  + PreCast: PreCast
+  + Stone: Stone
+  + Stucco: Stucco
+  + VinylSd: Vinyl Siding
+  + Wd Sdng: Wood Siding
+  + WdShing: Wood Shingles\
+\
+- *Exterior2nd* - Identifica o acabamento externo da casa (se exixtir mais de um).
+  + AsbShng: Asbestos Shingles
+  + AsphShn: Asphalt Shingles
+  + BrkComm: Brick Common
+  + BrkFace: Brick Face
+  + CBlock: Cinder Block
+  + CemntBd: Cement Board
+  + HdBoard: Hard Board
+  + ImStucc: Imitation Stucco
+  + MetalSd: Metal Siding
+  + Other: Other
+  + Plywood: Plywood
+  + PreCast: PreCast
+  + Stone: Stone
+  + Stucco: Stucco
+  + VinylSd: Vinyl Siding
+  + Wd Sdng: Wood Siding
+  + WdShing: Wood Shingles\
+\
+- *MasVnrType* - Identifica o tipo de alvenaria.
+  + BrkCmn: Brick Common
+  + BrkFace: Brick Face
+  + CBlock: Cinder Block
+  + None: None
+  + Stone: Stone\
+\
+- *MasVnrArea* - Identifica a área em pés quadrados da alvenaria.
+\
+- *ExterQual* - Avaliação da qualidade do material do exterior da construção.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Average/Typical
+  + Fa: Fair
+  + Po: Poor\
+\
+- *ExterCond* - Avaliação da condição atual do material do exterior da contrução.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Average/Typical
+  + Fa: Fair
+  + Po: Poor\
+\
+- *Foundation* - Identifica o tipo de fundação.
+  + BrkTil: Brick & Tile
+  + CBlock: Cinder Block
+  + PConc: Poured Contrete
+  + Slab: Slab
+  + Stone: Stone
+  + Wood: Wood\
+\
+- *BsmtQual* - Avaliação da altura do porão.
+  + Ex: Excellent (100+ inches)
+  + Gd: Good (90-99 inches)
+  + TA: Typical (80-89 inches)
+  + Fa: Fair (70-79 inches)
+  + Po: Poor (<70 inches
+  + NA: No Basement\
+\
+- *BsmtCond* - Avaliação da condição geral do porão.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Typical - slight dampness allowed
+  + Fa: Fair - dampness or some cracking or settling
+  + Po: Poor - Severe cracking, settling, or wetness
+  + NA: No Basement\
+\
+- *BsmtExposure* - Identifica o tipo de exposição do porão para o jardim.
+  + Gd: Good Exposure
+  + Av: Average Exposure (split levels or foyers typically score average or above)
+  + Mn: Mimimum Exposure
+  + No: No Exposure
+  + NA: No Basement\
+\
+- *BsmtFinType1* - Classificação da área contruída tipo 1 do porão.
+  + GLQ: Good Living Quarters
+  + ALQ: Average Living Quarters
+  + BLQ: Below Average Living Quarters
+  + Rec: Average Rec Room
+  + LwQ: Low Quality
+  + Unf: Unfinshed
+  + NA: No Basement\
+\
+- *BsmtFinSF1* - Área contruída tipo 1 do porão em pés quadrados.
+\
+- *BsmtFinType2* - Classificação da área contruída tipo 2 do porão (se mais de um).
+  + GLQ: Good Living Quarters
+  + ALQ: Average Living Quarters
+  + BLQ: Below Average Living Quarters
+  + Rec: Average Rec Room
+  + LwQ: Low Quality
+  + Unf: Unfinshed
+  + NA: No Basement\
+\
+- *BsmtFinSF2* - Área contruída tipo 1 do porão em pés quadrados.
+\
+- *BsmtUnfSF* - Área não contruída do porão em pés quadrados.
+\
+- *TotalBsmtSF* - Área total do porão em pés quadrados.
+\
+- *Heating* - Identifica o tipo de sistema de aquecimento.
+  + Floor: Floor Furnace
+  + GasA: Gas forced warm air furnace
+  + GasW: Gas hot water or steam heat
+  + Grav: Gravity furnace
+  + OthW: Hot water or steam heat other than gas
+  + Wall: Wall furnace\
+\
+- *HeatingQC* - Avaliação da qualidade e condição dos sistema de aquecimento.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Average/Typical
+  + Fa: Fair
+  + Po: Poor\
+\
+- *CentralAir* - Identifica a existência de sistema de ar condicionado.
+  + N: No
+  + Y: Yes\
+\
+- *Electrical* - Identifica o tipo de sistema elétrico.
+  + SBrkr: Standard Circuit Breakers & Romex
+  + FuseA: Fuse Box over 60 AMP and all Romex wiring (Average)
+  + FuseF: 60 AMP Fuse Box and mostly Romex wiring (Fair)
+  + FuseP: 60 AMP Fuse Box and mostly knob & tube wiring (poor)
+  + Mix: Mixed\
+\
+- *1stFlrSF* - Área do primeiro andar em pés quadrados.
+\
+- *2ndFlrSF* - Área do segundo andar em pés quadrados.
+\
+- *LowQualFinSF* - Área com acabamento de baixa qualidade em pés quadrados (todos os andares).
+\
+- *GrLivArea* - Área habitável acima do solo em pés quadrados.
+\
+- *BsmtFullBath* - Quantidade de banheiros completos no porão.
+\
+- *BsmtHalfBath* - Quantidade de lavabos no porão.
+\
+- *FullBath* - Quantidade de banheiros completos na área habitável acima do solo.
+\
+- *HalfBath* - Quantidade de lavabos na área habitável acima do solo.
+\
+- *Bedroom* - Quantidade de quartos na área habitável acima do solo (Não inclui o porão).
+\
+- *Kitchen* - Quantidade de cozinhas na área habitável acima do solo.
+\
+- *KitchenQual* - Avaliação da qualidade da cozinha.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Typical/Average
+  + Fa: Fair
+  + Po: Poor\
+\
+- *TotRmsAbvGrd* - Quantidade total de cômodoss na área habitável acima do solo (Não inclui banheiros).
+\
+- *Functional* - Idintifica a funcionaidade da propriedade (assume como "Típica" a menos que haja alguma dedução).
+  + Typ: Typical Functionality
+  + Min1: Minor Deductions 1
+  + Min2: Minor Deductions 2
+  + Mod: Moderate Deductions
+  + Maj1: Major Deductions 1
+  + Maj2: Major Deductions 2
+  + Sev: Severely Damaged
+  + Sal: Salvage only\
+\
+- *Fireplaces* - Quantidade de lareiras.
+\
+- *FireplaceQu* - Avaliação da qualidade da lareira.
+  + Ex: Excellent - Exceptional Masonry Fireplace
+  + Gd: Good - Masonry Fireplace in main level
+  + TA: Average - Prefabricated Fireplace in main living area or Masonry Fireplace in basement
+  + Fa: Fair - Prefabricated Fireplace in basement
+  + Po: Poor - Ben Franklin Stove
+  + NA: No Fireplace\
+\
+- *GarageType* - Identifica a localização da garagem.
+  + 2Types: More than one type of garage
+  + Attchd: Attached to home
+  + Basment: Basement Garage
+  + BuiltIn: Built-In (Garage part of house - typically has room above garage)
+  + CarPort: Car Port
+  + Detchd: Detached from home
+  + NA: No Garage\
+\
+- *GarageYrBlt* - Ano de contrução da garagem.
+\
+- *GarageFinish* - Identifica o acabamento interno da garagem.
+  + Fin: Finished
+  + RFn: Rough Finished
+  + Unf: Unfinished
+  + NA: No Garage\
+\
+- *GarageCars* - Quantidade de carros que a garagem comporta.
+\
+- *GarageArea* - Tamanho da garagem em pés quadrados.
+\
+- *GarageQual* - Identifica a qualidade da garagem.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Typical/Average
+  + Fa: Fair
+  + Po: Poor
+  + NA: No Garage\
+\
+- *GarageCond* - Identifica a condição da garagem.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Typical/Average
+  + Fa: Fair
+  + Po: Poor
+  + NA: No Garage\
+\
+- *PavedDrive* - Identifica se a entrada da gragem é pavimentada.
+  + Y: Paved
+  + P: Partial Pavement
+  + N: Dirt/Gravel\
+\
+- *WoodDeckSF* - Área do deck de madeira em pés quadrados.
+\
+- *OpenPorchSF* - Área da varanda em pés quadrados.
+\
+- *EnclosedPorch* - Área da varanda fechada (telhado) em pés quadrados.
+\
+- *3SsnPorch* - Área da varanda fechada (3 seasons) em pés quadrados.
+\
+- *ScreenPorch* - Área da varanda fechada (tela) em pés quadrados.
+\
+- *PoolArea* - Área da da piscina em pés quadrados.
+\
+- *PoolQC* - Identifica a qualidade da piscina.
+  + Ex: Excellent
+  + Gd: Good
+  + TA: Average/Typical
+  + Fa: Fair
+  + NA: No Pool\
+\
+- *Fence* - Identifica a qualidade da cerca.
+  + GdPrv: Good Privacy
+  + MnPrv: Minimum Privacy
+  + GdWo: Good Wood
+  + MnWw: Minimum Wood/Wire
+  + NA: No Fence\
+\
+- *MiscFeature* - Identifica coisas variadas que não foram cobertas nas categorias anteriores.
+  + Elev: Elevator
+  + Gar2: 2nd Garage (if not described in garage section)
+  + Othr: Other
+  + Shed: Shed (over 100 SF)
+  + TenC: Tennis Court
+  + NA: None\
+\
+- *MiscVal* - Valor em dólares das coisas variádas descritas acima.
+\
+- *MoSold* - Mês da venda (MM).
+\
+- *YrSold* - Ano da venda (YYYY).
+\
+- *SaleType* - Identifica o tipo da venda.
+  + WD: Warranty Deed - Conventional
+  + CWD: Warranty Deed - Cash
+  + VWD: Warranty Deed - VA Loan
+  + New: Home just constructed and sold
+  + COD: Court Officer Deed/Estate
+  + Con: Contract 15% Down payment regular terms
+  + ConLw: Contract Low Down payment and low interest
+  + ConLI: Contract Low Interest
+  + ConLD: Contract Low Down
+  + Oth: Other\
+\
+- *SaleCondition* - Condição da venda.
+  + Normal: Normal Sale
+  + Abnorml: Abnormal Sale - trade, foreclosure, short sale
+  + AdjLand: Adjoining Land Purchase
+  + Alloca: Allocation - two linked properties with separate deeds, typically condo with a garage unit
+  + Family: Sale between family members
+  + Partial: Home was not completed when last assessed (associated with New Homes)\
+\
+- *SalesPrice* - O preço de venda da casa. Este é o target, a coluna que você está tentando prever.
+\
+<span style="color: blue;">**test.csv**</span> -
+Registros de cerca de metade (~1459) das casas, para serem usados como dados de
+teste.\
+Sua tarefa é prever o valor de Transportado para os passageiros neste conjunto.\
+\
+<span style="color: blue;">**sample_submission.csv**</span> -
+Um arquivo de envio no formato correto.
+
+- *Id* - Id para cada casa no conjunto de teste.
+\
+- *SalesPrice* - O alvo. Para cada casa, preveja o valor da venda associado a ela.
+\
+
+
+----------------------------------------------------------------
+
+
+# Preparação dos Dados [Data Preparation]
+
+## Importação dos Dados
+
+Vamos importar os 3 bancos: Train, Test e Sample_Submission.
+
+```{r load-data-house}
+ds2_train <- read_csv(".\\house-prices-regression\\train.csv")
+ds2_test <- read_csv(".\\house-prices-regression\\test.csv")
+ds2_submission <- read_csv(".\\house-prices-regression\\sample_submission.csv")
+```
+
+Antes de ajustar as variáveis, vamos combinar os dados para que as mudanças sejam feitas de forma mais rápida.\
+
+```{r load-data-house-2}
+#merge between test & submission
+ds2_test_submission <- merge(ds2_test, ds2_submission, by=c("Id", "Id"))
+
+ds2_train$table <- "train"
+ds2_test_submission$table <- "test"
+
+ds2_all <- rbind(ds2_train, ds2_test_submission)
+
+```
+
+
+## Ajuste das Variáveis
+
+Esse banco de dados consiste basicamente em variáveis qualitativas em sua grande maioria. Ainda sim algumas mudanças precisam ser feitas para que possamos realizar a modelagem.\
+As variáveis **OverallQal** e **OverallCond** são *Escalas de Likert* pura e simplemente com 10 níveis de classificação. Existem outras variáveis no banco como **ExterQual**, **ExterCond**, **BsmtQual**, **BsmtCond**, **HeatingQC**, **KitchenQual**, **FireplaceQu**, **GarageQual**, **GarageCond** e **PoolQC** também são escalas de Likert contudo temos letras ao invés de números e essas letras também representam uma ordem. Vamos fazer a modificação dessas variáveis, principalmente para o caso em que uma das possíveis respostas para elas é "NA", indicando que essa pergunta não se aplica naquela moradia e não deve ser removido como se fosse valor faltante.\
+Variáveis relativas ao porão por exemplo, só serão respondidas se a casa possui porão, então faz sentido criar uma variável dummy respondendo essa pergunta simples pois pode ser mais significante no modelo saber se tem ou não porão. O mesmo para a variável sobre a qualidade da lareira, quantidade de garagens, condição da piscina, condição da cerca e a variável **MiscFeature**.\
+
+Snapshot:
+
+```{r house-train-head-1}
+head(ds2_all) %>%  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+```
+
+### Observações faltantes
+
+```{r house-train-miss_before_adj-1}
+#h_train1_summary0 <- as.data.frame(which( colSums( is.na(ds2_all[ds2_all$table == "train",]) ) > 0 ))
+#colnames(h_train1_summary3) <- c("Missing Observations")
+
+
+h_train1_summary0 <- as.data.frame(t(ds2_all[ds2_all$table == "train",] %>% 
+  summarise(across(everything(), ~ sum(is.na(.x)) ))))
+colnames(h_train1_summary0) <- c("Missing Observations")
+
+h_train1_summary0 %>% 
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T) %>%
+  column_spec(2, color = "black",
+              background = ifelse(h_train1_summary0 > 0, "yellow", "blank")
+              #,
+             #popover = paste("am:", mtcars$am[1:8])
+              )
+```
+
+#### **Porão**
+
+Note que as variáveis que são relacionadas com o **Porão** possuem quase a mesma quantidade de observações faltantes, idicando que possivelmente se a casa não tem porão, as depois variáveis relacioandas a essa parte da casa fazem sentido serem nulas. Contudo, não temos uma variável na base que indica claramente se a casa possui ou não porão e para fins desse modelo, seria conveniente ter uma variável binária dizendo se a casa tem ou não porão.\
+Vamos então analisar os valores faltantes dessa variável e ver se de fato todas os faltantes são casas que não possuem porão.\
+
+```{r house-train-Bsm-1}
+ds2_all[ds2_all$table == "train",] %>% 
+  dplyr::select("Id" | contains("Bsm")) %>%
+  filter_all(any_vars( is.na(.)))  %>%  
+    kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Repare que a casa de **ID = 333** tem uma variável faltante no campo **BsmtFinType2**, o que deveria indicar que a casa não tem porão, contude a variável **BsmtFinType1** foi preenchida e também a variável que se relaciona com a metragem contruida no tipo 2, **BsmtFinSF2**, indicando que de fato, a observação *333* tem um valor missing e que não sabemos qual a classificação dada para essa parte da casa.\
+A casa de **ID = 949** parece mostrar que a casa possui um porão, mas não sabemos mais detalhes sobre o mesmo, parece não foi terminado e somente temos a metragem final. Nesse caso, ter BsmtExposure = NA significaria que a casa não possui porão o que não parenta ser verdade. Isso indica que *949* possui um valor faltante real. O mesmo ocorre com a casa de **ID = 1488**.\
+Já a casa de **ID = 2041** possui um valor faltante na variável **BsmtCond**, indicando que esse também é um valor faltante real. O mesmo ocorre para as casa de IDs **2186** e **2525**.\
+As casas com **ID = 2218** e **2219** possuem valores faltantes reais na variável **BsmtQual**.\
+A casa com **ID = 2349** possue um valor faltante real para a variável **BsmtExposure**.\
+Ou seja, a maioria dos valores faltantes se referem à casas que não possuem porão, com exceção dos descritos acima, isso deve ser considerado quando formos criar uma variável binária indicativa de ter ou não porão na casa.\
+\
+Para fins de estudo, decidimos que se:\
+- BsmtQual = NA
+- BsmtCond = NA
+- BsmtExposure = NA
+- BsmtFinType1 = NA
+- BsmtFinSF1 = 0
+- BsmtFinType2 = NA
+- BsmtFinSF2 = 0
+- BsmtUnfSF = 0
+- TotalBsmtSF = 0\
+então temos que a casa não possui um porão, caso contrário vamos dizer que possui. Somente com essa reclassificação já poderemos tirar os valores reais faltantes do que não são reais.\
+
+
+### **Alvenaria**
+
+Similarmente, temos para se a casa possui ou não alvernaria:\
+- MasVnrType = None
+- MasVnrArea = 0\
+ambas as condições tem que ocorrer.
+
+```{r house-train-MasVnr-1}
+ds2_all[ds2_all$table == "train",] %>% 
+  dplyr::select("Id" | contains("MasVnr")) %>%
+  filter_all(any_vars(grepl("None",.)))  %>%  
+    kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+ds2_all[ds2_all$table == "train",] %>% 
+  dplyr::select("Id" | contains("MasVnr")) %>%
+  filter_all(any_vars( is.na(.)))  %>%  
+    kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+#### **Lareira**
+
+Similarmente, temos para se a casa possui ou não lareira:\
+- Fireplaces = 0
+- FireplaceQu = NA\
+ambas as condições tem que ocorrer.
+
+```{r house-train-Fireplace-1}
+ds2_all[ds2_all$table == "train",] %>% 
+  dplyr::select("Id" | contains("Fireplace")) %>%
+  filter_all(any_vars( is.na(.)))  %>%  
+    kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+#### **Garagem**
+
+Similarmente, temos para se a casa possui ou não garagem todas as condçoes a seguir devem ocorrer:\
+- GarageType = NA
+- GarageYrBlt = NA
+- GarageFinish = NA
+- GarageCars = 0
+- GarageArea = 0
+- GarageQual = NA
+- GarageCond = NA\
+
+```{r house-train-Garage-1}
+ds2_all[ds2_all$table == "train",] %>% 
+  dplyr::select("Id" | contains("Garage")) %>%
+  filter_all(any_vars( is.na(.)))  %>%  
+    kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+#### **Piscina**
+
+Similarmente, temos para se a casa possui ou não piscina:\
+- PoolArea = 0
+- PoolQC = NA\
+ambas as condições tem que ocorrer.
+
+```{r house-train-Pool-1}
+ds2_all[ds2_all$table == "train",] %>% 
+  dplyr::select("Id" | contains("Pool")) %>%
+  filter_all(any_vars( is.na(.)))  %>%  
+    kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+### Ajuste e criação de Dummies
+
+```{r house-train-mod-1}
+# mudando NA para 0 pensando no futuro, assumindo que o R vai jogar um dos fatores (geralmente em ordem alfabética) como base quando calculamos a regressão. E, no caso, NA para essa variável não é valor faltante, é uma resposta válidade.
+
+  # Alley
+ds2_all$Alley_ <- ifelse(is.na(ds2_all$Alley), 0, ds2_all$Alley)
+#ds2_all[c(22:32),c("Alley","Alley_")]
+
+
+  # BsmtQual / BsmtCond / BsmtExposure / BsmtFinType1 / BsmtFinType2
+# existência de porão
+ds2_all$BsmtDummy_ <- ifelse(is.na(ds2_all$BsmtQual) &
+                               is.na(ds2_all$BsmtCond) &
+                               is.na(ds2_all$BsmtExposure) &
+                               is.na(ds2_all$BsmtFinType1) &
+                               ds2_all$BsmtFinSF1 == 0 &
+                               is.na(ds2_all$BsmtFinType2) &
+                               ds2_all$BsmtFinSF2 == 0 &
+                               ds2_all$BsmtUnfSF == 0 &
+                               ds2_all$TotalBsmtSF == 0, 0, 1) #binary
+
+ds2_all$BsmtQual_ <- ifelse(ds2_all$BsmtDummy_ == 0 & is.na(ds2_all$BsmtQual), 0, ds2_all$BsmtQual)
+#ds2_all[c(15:25),c("BsmtQual","BsmtQual_")]
+ds2_all$BsmtCond_ <- ifelse(ds2_all$BsmtDummy_ == 0 & is.na(ds2_all$BsmtCond), 0, ds2_all$BsmtCond)
+ds2_all$BsmtExposure_ <- ifelse(ds2_all$BsmtDummy_ == 0 & is.na(ds2_all$BsmtExposure), 0, ds2_all$BsmtExposure)
+ds2_all$BsmtFinType1_ <- ifelse(ds2_all$BsmtDummy_ == 0 & is.na(ds2_all$BsmtFinType1), 0, ds2_all$BsmtFinType1)
+ds2_all$BsmtFinType2_ <- ifelse(ds2_all$BsmtDummy_ == 0 & is.na(ds2_all$BsmtFinType2), 0, ds2_all$BsmtFinType2)
+
+
+  # MasVnrTyp
+# existência de alvenaria
+ds2_all$MasVnrDummy_ <- ifelse(ds2_all$MasVnrType == "None" & 
+                                    ds2_all$MasVnrArea == 0, 0, 1) #binary
+ds2_all$MasVnrType_ <- ifelse(ds2_all$MasVnrType == "None" , 0, ds2_all$MasVnrType)
+
+  # FireplaceQu
+# existência de lareira
+ds2_all$FirePlaceDummy_ <- ifelse(ds2_all$Fireplaces == 0 & 
+                                    is.na(ds2_all$FireplaceQu), 0, 1) #binary
+ds2_all$FireplaceQu_ <- ifelse(ds2_all$FirePlaceDummy_ == 0 & 
+                                 is.na(ds2_all$FireplaceQu), 0, ds2_all$FireplaceQu)
+
+
+  # GarageType / GarageFinish / GarageQual / GarageCond 
+# existência de garagem
+ds2_all$GarageDummy_ <- ifelse(is.na(ds2_all$GarageType) &
+                                 is.na(ds2_all$GarageYrBlt) &
+                                 is.na(ds2_all$GarageFinish) &
+                                 ds2_all$GarageCars == 0 &
+                                 ds2_all$GarageArea == 0 &
+                                 is.na(ds2_all$GarageQual) &
+                                 is.na(ds2_all$GarageCond) , 0, 1) #binary
+ds2_all$GarageType_ <- ifelse(ds2_all$GarageDummy_ == 0 & is.na(ds2_all$GarageType), 0, ds2_all$GarageType)
+ds2_all$GarageFinish_ <- ifelse(ds2_all$GarageDummy_ == 0 & is.na(ds2_all$GarageFinish), 0, ds2_all$GarageFinish)
+ds2_all$GarageQual_ <- ifelse(ds2_all$GarageDummy_ == 0 & is.na(ds2_all$GarageQual), 0, ds2_all$GarageQual)
+ds2_all$GarageCond_ <- ifelse(ds2_all$GarageDummy_ == 0 & is.na(ds2_all$GarageCond), 0, ds2_all$GarageCond)
+
+
+  # PoolQC
+# existência de piscina
+ds2_all$PoolDummy_ <- ifelse(ds2_all$PoolArea == 0 & is.na(ds2_all$PoolQC), 0, 1) #binary
+ds2_all$PoolQC_ <- ifelse(ds2_all$PoolDummy_ == 0 & is.na(ds2_all$PoolQC), 0, ds2_all$PoolQC)
+
+
+  # Fence
+# existência de cerca
+ds2_all$FenceDummy_ <- ifelse(is.na(ds2_all$Fence), 0, 1) #binary
+ds2_all$Fence_ <- ifelse(is.na(ds2_all$Fence), 0, ds2_all$Fence)
+
+
+  # MiscFeature
+# existência de coisas variadas
+ds2_all$MiscFeatureDummy_ <- ifelse(is.na(ds2_all$MiscFeature), 0, 1) #binary
+ds2_all$MiscFeature_ <- ifelse(is.na(ds2_all$MiscFeature), 0, ds2_all$MiscFeature)
+
+
+  # CentralAir
+ds2_all <- ds2_all %>%
+  mutate(
+    CentralAir_ = as.factor(case_when(
+      CentralAir == "Y"  ~ "Yes",
+      CentralAir == "N" ~ "No"
+  ))
+)
+
+
+```
+
+
+### Criação de fatores
+
+```{r house-train-mod-2}
+# Transformando as variáveis numericas que são fatores em fatores.
+
+# tipo de moradia
+ds2_all$MSSubClass_ <- as.factor(ds2_all$MSSubClass)
+
+
+### Likert 10
+likert_10levels <- factor(c(1:10), ordered = TRUE)
+
+# escala de Likert - OverallQual
+ds2_all$OverallQual_ <- factor(ds2_all$OverallQual, levels = likert_10levels, ordered = TRUE)
+
+# escala de Likert - OverallCond
+ds2_all$OverallCond_ <- factor(ds2_all$OverallCond, levels = likert_10levels, ordered = TRUE)
+
+
+### Likert 5
+likert_5levels_a <- factor(c(1:5), labels = c("Po", "Fa", "TA", "Gd", "Ex") , ordered = TRUE)
+likert_5levels_b <- factor(c(0:4), labels = c("0", "No", "Mn", "Av", "Gd") , ordered = TRUE)
+
+# escala de Likert A - ExterQual
+ds2_all$ExterQual_ <- factor(ds2_all$ExterQual, levels = likert_5levels_a, ordered = TRUE)
+
+# escala de Likert A - ExterCond
+ds2_all$ExterCond_ <- factor(ds2_all$ExterCond, levels = likert_5levels_a, ordered = TRUE)
+
+# escala de Likert B - BsmtExposure_
+ds2_all$BsmtExposure_ <- factor(ds2_all$BsmtExposure_, levels = likert_5levels_b, ordered = TRUE)
+
+# escala de Likert A - HeatingQC
+ds2_all$HeatingQC_ <- factor(ds2_all$HeatingQC, levels = likert_5levels_a, ordered = TRUE)
+
+# escala de Likert A - KitchenQual
+ds2_all$KitchenQual_ <- factor(ds2_all$KitchenQual, levels = likert_5levels_a, ordered = TRUE)
+
+
+### Likert 6
+likert_6levels <- factor(c(0:5), labels = c("0","Po", "Fa", "TA", "Gd", "Ex") , ordered = TRUE)
+
+# escala de Likert - BsmtQual_
+ds2_all$BsmtQual_ <- factor(ds2_all$BsmtQual_, levels = likert_6levels, ordered = TRUE)
+
+# escala de Likert - BsmtCond_
+ds2_all$BsmtCond_ <- factor(ds2_all$BsmtCond_, levels = likert_6levels, ordered = TRUE)
+
+# escala de Likert - FireplaceQu_
+ds2_all$FireplaceQu_ <- factor(ds2_all$FireplaceQu_, levels = likert_6levels, ordered = TRUE)
+
+# escala de Likert - GarageQual_
+ds2_all$GarageQual_ <- factor(ds2_all$GarageQual_, levels = likert_6levels, ordered = TRUE)
+
+# escala de Likert - GarageCond_
+ds2_all$GarageCond_ <- factor(ds2_all$GarageCond_, levels = likert_6levels, ordered = TRUE)
+
+# escala de Likert - PoolQC_
+ds2_all$PoolQC_ <- factor(ds2_all$PoolQC_, levels = likert_6levels, ordered = TRUE)
+
+
+### Likert 7
+likert_7levels <- factor(c(0:6), labels = c("0", "Unf", "LwQ", "Rec", "BLQ", "ALQ", "GLQ") , ordered = TRUE)
+
+# escala de Likert - BsmtFinType1_
+ds2_all$BsmtFinType1_ <- factor(ds2_all$BsmtFinType1_, levels = likert_7levels, ordered = TRUE)
+
+# escala de Likert - BsmtFinType2_
+ds2_all$BsmtFinType2_ <- factor(ds2_all$BsmtFinType2_, levels = likert_7levels, ordered = TRUE)
+
+```
+
+
+### Summary
+
+Após feitas as mudanças, podemos ver que o número de valores faltantes reais nas variáveis categoricas diminutiam drasticamente quando comparado com as variáveis originais.
+
+
+```{r house-train-miss_after_adj-1}
+#h_train1_summary1 <- as.data.frame(which( colSums( is.na(ds2_all[ds2_all$table == "train",]) ) > 0 ))
+#colnames(h_train1_summary1) <- c("Missing Observations")
+
+
+h_train1_summary1 <- as.data.frame(t(ds2_all[ds2_all$table == "train",] %>% 
+  summarise(across(everything(), ~ sum(is.na(.x))))))
+colnames(h_train1_summary1) <- c("Missing Observations")
+
+h_train1_summary1 %>% arrange(rownames(h_train1_summary1)) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+
+## Resumo dos Dados
+
+### Variável Dependente
+
+Sabemos que nossa variável dependente **SalePrice** é quantitativa contínua, então podemos fazeruma análise inicial dela.\
+
+```{r house-train-VD-1}
+# Histograma
+h_train1_chart_resp_1 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = SalePrice)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20) +
+  ggtitle("Histograma do Preço de Venda da casa") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("Preço Venda") +
+  ylab("Frequência")
+
+#ggplotly(h_train1_chart_resp_1)
+
+
+# Histograma e Densidade
+h_train1_chart_resp_2 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = SalePrice)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 20 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma e curva de densidade do Preço de Venda da casa") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("Preço Venda") +
+  ylab("Frequência relativa")
+
+#ggplotly(h_train1_chart_resp_2)
+
+# QQPlot
+h_train1_chart_resp_3 <- ggplot(ds2_all[ds2_all$table == "train",], aes(sample = SalePrice)) +
+  stat_qq_point(size = 2, color = "lightblue", pch=19) +
+  stat_qq_line(color="red", size=0.5) +
+  ggtitle("Normal Q-Q Plot do Preço de Venda da casa") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("Theoretical") + ylab("Sample")
+
+#ggplotly(h_train1_chart_resp_3)
+
+grid.arrange(h_train1_chart_resp_1,
+             h_train1_chart_resp_2,
+             h_train1_chart_resp_3,
+             nrow = 2,
+             ncol = 2)
+
+```
+
+Visualmente, temos que essa variável é assimétrica à direita (positiva).
+
+```{r house-train-VD-2}
+# verificando o nivel de assimetria
+skewness(ds2_all[ds2_all$table == "train",]$SalePrice)
+```
+
+O cálculo feito acima comprova que de fato a variável é assimétrica à direita.
+
+```{r house-train-VD-3}
+# verificando a normalidade da variável
+shapiro.test(ds2_all[ds2_all$table == "train",]$SalePrice)
+```
+
+Acima fizemos o Teste Shapiro-Wilk para Normalidade dessa variável. As hipóteses do teste são:
+
+$$
+  \begin{cases}
+  H_0: \text{ A amostra veio de uma população normalmente distribuída} \\
+  H_1: \text{ A amostra não veio de uma população normalmente distribuída}
+  \end{cases}
+$$
+
+e como p-valor < 5% o teste rejeita $H_0$, indicando que a amostra de preços de venda não veio de uma população normal. Isso nos causar problemas mais a frente quando formos definir o tipo de modelagem que venhamos a fazer, já que para a regressão linear, um dos pressupostos é que as variáveis sejam normais.\
+Um jeito de resolver esse problema seria usar o log desse valor.
+
+```{r house-train-mod-3}
+ds2_all$SalePrice_log <- log(ds2_all$SalePrice)
+```
+
+
+
+```{r house-train-VD-1a}
+# Histograma
+h_train1_chart_resp_4 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = SalePrice_log)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20) +
+  ggtitle("Histograma do log Preço de Venda da casa") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("log Preço Venda") +
+  ylab("Frequência")
+
+#ggplotly(h_train1_chart_resp_4)
+
+
+# Histograma e Densidade
+h_train1_chart_resp_5 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = SalePrice_log)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 20 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma e curva de densidade do log Preço de Venda da casa") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("log Preço Venda") +
+  ylab("Frequência relativa")
+
+#ggplotly(h_train1_chart_resp_5)
+
+# QQPlot
+h_train1_chart_resp_6 <- ggplot(ds2_all[ds2_all$table == "train",], aes(sample = SalePrice_log)) +
+  stat_qq_point(size = 2, color = "lightblue", pch=19) +
+  stat_qq_line(color="red", size=0.5) +
+  ggtitle("Normal Q-Q Plot do log Preço de Venda da casa") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("Theoretical") + ylab("Sample")
+
+#ggplotly(h_train1_chart_resp_6)
+
+grid.arrange(h_train1_chart_resp_4,
+             h_train1_chart_resp_5,
+             h_train1_chart_resp_6,
+             nrow = 2,
+             ncol = 2)
+```
+
+```{r house-train-VD-2a}
+# verificando o nivel de assimetria
+skewness(ds2_all[ds2_all$table == "train",]$SalePrice_log)
+```
+
+```{r house-train-VD-3a}
+# verificando a normalidade da variável
+shapiro.test(ds2_all[ds2_all$table == "train",]$SalePrice_log)
+```
+
+O teste de Shapiro-Wilk continua rejeitando o log da variável. Mais a frente vamos verificar novamente após retirarmos outliers, pois podem ser esses valores extremos mexendo com a normalidade da variável resposta. Foi possivel notar que o log do preço tem um p-valor maior do que somente o preço, indicando que usar o log aqui é realmente o caminho certo.\
+
+
+
+
+Abaixo temos algumas das estatísticas descritivas das variáveis numéricas do banco de dados. Não necessariamente são variáveis quantitavivas. O objetivo aqui é ver se há valores descrepantes dos demais.\
+
+### Train
+
+```{r house-train-summary-2}
+h_train1_summary2 <- ds2_all[ds2_all$table == "train",] %>% 
+  summarise(across(
+    .cols = where(is.numeric),
+    .fns = list(
+      ~ sum(is.na(.x)),
+      min = min,
+      median = median, 
+      mean = mean, 
+      max = max, 
+      sd = sd
+    ), 
+    na.rm = TRUE,
+    .names = "{.col}_{.fn}")
+    ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  mutate(statistic = str_match(name, pattern = ".+_(.+)")[,2],
+         name = str_match(name, pattern = "(.+)_.+")[,2]) %>% 
+  pivot_wider(names_from = name, values_from = value)
+
+h_train1_summary2 %>% kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+<span style="color: red;">**Obs**: Na tabela acima a linha *statistic* = **1** representa a quantidade de valores faltantes no banco de treino.</span>\
+
+Note que de todas as variáveis numéricas do banco,\
+- MasVnrArea: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "train",]$MasVnrArea))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "train",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "train",]$MasVnrArea))/nrow((ds2_all[ds2_all$table == "train",])))*100,1)`
+%.\
+- LotFrontage: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "train",]$LotFrontage))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "train",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "train",]$LotFrontage))/nrow((ds2_all[ds2_all$table == "train",])))*100,1)`
+%.\
+\
+
+### Test
+
+```{r house-test-summary-2}
+h_test1_summary2 <- ds2_all[ds2_all$table == "test",] %>% 
+  summarise(across(
+    .cols = where(is.numeric),
+    .fns = list(
+      ~ sum(is.na(.x)),
+      min = min,
+      median = median, 
+      mean = mean, 
+      max = max, 
+      sd = sd
+    ), 
+    na.rm = TRUE,
+    .names = "{.col}_{.fn}")
+    ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  mutate(statistic = str_match(name, pattern = ".+_(.+)")[,2],
+         name = str_match(name, pattern = "(.+)_.+")[,2]) %>% 
+  pivot_wider(names_from = name, values_from = value)
+
+h_test1_summary2 %>% 
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+<span style="color: red;">**Obs**: Na tabela acima a linha *statistic* = **1** representa a quantidade de valores faltantes no banco de test.</span>\
+
+Note que de todas as variáveis numéricas do banco,\
+- MasVnrArea: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$MasVnrArea))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$MasVnrArea))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- LotFrontage: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$LotFrontage))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$LotFrontage))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- BsmtFinSF1: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtFinSF1))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtFinSF1))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- BsmtFinSF2: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtFinSF2))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtFinSF2))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- BsmtUnfSF: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtUnfSF))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtUnfSF))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- TotalBsmtSF: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$TotalBsmtSF))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$TotalBsmtSF))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- BsmtFullBath: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtFullBath))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtFullBath))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- BsmtHalfBath: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtHalfBath))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtHalfBath))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- GarageYrBlt: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$GarageYrBlt))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$GarageYrBlt))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- GarageCars: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$GarageCars))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$GarageCars))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- GarageArea: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$GarageArea))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$GarageArea))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- BsmtDummy_: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtDummy_))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$BsmtDummy_))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+- MasVnrDummy_: contém 
+`r sum(is.na(ds2_all[ds2_all$table == "test",]$MasVnrDummy_))`
+valores faltantes dos 
+`r nrow((ds2_all[ds2_all$table == "test",]))` 
+valores totais da base de treino, representando 
+`r round((sum(is.na(ds2_all[ds2_all$table == "test",]$MasVnrDummy_))/nrow((ds2_all[ds2_all$table == "test",])))*100,1)`
+%.\
+\
+\
+Note que a base de teste tem valores faltantes em mais variáveis diferentes do que a base de treino, mas ainda sim, a que mais chama atenção é **LotFrontage**.\
+Como a variável **LotFrontage** tem muitos valores faltantes, a simplesmente remoção não seria uma boa alternativa. Podemos pensar em fazer uma regressão simples nessa variável, se encontrarmos uma que seja correlacionada com ela e ajustar esses valores faltantes.\
+\
+
+## Regressão para a variável *LotFrontage*
+
+
+```{r house-train-lotFrontage-01}
+# Histograma
+h_train1_chart_LF_1 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = LotFrontage)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20) +
+  ggtitle("Histograma da variável LotFrontage") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("LotFrontage (ft²)") +
+  ylab("Frequência")
+
+#ggplotly(h_train1_chart_LF_1)
+
+
+# Histograma e Densidade
+h_train1_chart_LF_2 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = LotFrontage)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 20 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma e curva de densidade da variável LotFrontage") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("LotFrontage (ft²)") +
+  ylab("Frequência relativa")
+
+#ggplotly(h_train1_chart_LF_2)
+
+# QQPlot
+h_train1_chart_LF_3 <- ggplot(ds2_all[ds2_all$table == "train",], aes(sample = LotFrontage)) +
+  stat_qq_point(size = 2, color = "lightblue", pch=19) +
+  stat_qq_line(color="red", size=0.5) +
+  ggtitle("Normal Q-Q Plot da variável LotFrontage") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("Theoretical") + ylab("Sample")
+
+#ggplotly(h_train1_chart_LF_3)
+
+#qqnorm(ds2_all[ds2_all$table == "train",]$LotFrontage)
+
+grid.arrange(h_train1_chart_LF_1,
+             h_train1_chart_LF_2,
+             h_train1_chart_LF_3,
+             nrow = 2,
+             ncol = 2)
+```
+
+
+De maneira similar, temos que *LotFrontage* é também assimétrica à direita (positiva), e como vimos, o logaritmo pode resolver esse problema.\
+
+```{r house-train-lotFrontage-02}
+ds2_all$LotFrontage_log <- log(ds2_all$LotFrontage)
+ds2_all$LotArea_log <- log(ds2_all$LotArea)
+```
+
+
+
+
+```{r house-train-lotFrontage-03}
+# Histograma
+h_train1_chart_LF_4 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = LotFrontage_log)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20) +
+  ggtitle("Histograma da variável LotFrontage_log") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("log(LotFrontage (ft²))") +
+  ylab("Frequência")
+
+#ggplotly(h_train1_chart_LF_4)
+
+
+# Histograma e Densidade
+h_train1_chart_LF_5 <- ggplot(ds2_all[ds2_all$table == "train",] , aes(x = LotFrontage_log)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 20,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 20 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma e curva de densidade da variável LotFrontage_log") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("log(LotFrontage (ft²))") +
+  ylab("Frequência relativa")
+
+#ggplotly(h_train1_chart_LF_5)
+
+# QQPlot
+h_train1_chart_LF_6 <- ggplot(ds2_all[ds2_all$table == "train",], aes(sample = LotFrontage_log)) +
+  stat_qq_point(size = 2, color = "lightblue", pch=19) +
+  stat_qq_line(color="red", size=0.5) +
+  ggtitle("Normal Q-Q Plot da variável LotFrontage_log") +
+  theme(plot.title = element_text(size = 7, face = "bold")) +
+  xlab("Theoretical") + ylab("Sample")
+
+#ggplotly(h_train1_chart_LF_6)
+
+grid.arrange(h_train1_chart_LF_4,
+             h_train1_chart_LF_5,
+             h_train1_chart_LF_6,
+             nrow = 2,
+             ncol = 2)
+```
+
+Visualmente, após a apligação da função logarítmica, temos que a distribuição da variável **LotFrontage_log** se assemelha mais à Normal.\
+
+
+### Relação entre as variáveis
+
+```{r house-train-LF-plot-pairs-1, eval=FALSE}
+#pairs(ds1_train1_final)
+
+ggpairs(ds2_all[, -c(13, 25, 106)], 
+        ggplot2::aes(colour = table, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5)),
+        lower=list(combo=wrap("facethist", binwidth=0.8))
+        ) + theme_bw()
+```
+
+
+```{r house-train-LF-cormat-01}
+# num_cols <- unlist(lapply(ds2_all, is.numeric)) # Identify numeric columns (R BASE)
+# h_train_cormat_1 <- ds2_all[ , num_cols]  
+
+
+h_train_cormat_1 <- select_if(ds2_all, is.numeric) # Subset numeric columns (dplyr)
+h_train_cormat_2 <- round( x = cor(na.omit(h_train_cormat_1)), digits=2)
+#head(h_train_cormat_2)
+h_train_cormat_3 <- melt(h_train_cormat_2)  # heatmap (reshape2)
+#head(h_train_cormat_3)
+
+h_train_cormat_4 <- ggplot(data = h_train_cormat_3, 
+            aes(x=Var1, y=Var2, fill = value)) +
+  geom_tile() +
+  theme(axis.text.x=element_text(color = "black", size=7, angle=30, vjust=.8, hjust=0.8),
+        axis.text.y=element_text(color = "black", size=7, angle=0, vjust=.8, hjust=0.8)
+        ) +
+  ggtitle("Correlation Heatmap")
+
+ggplotly(h_train_cormat_4)
+```
+
+Separando somente os que tem correlação acima de 0.5 ou abaixo -0.5.
+
+```{r house-train-LF-cormat-02}
+h_train_cormat_5 <- ggplot(data = h_train_cormat_3[h_train_cormat_3$value > 0.5 | 
+                                      h_train_cormat_3$value < -0.5,], 
+            aes(x=Var1, y=Var2, fill = value)) +
+  geom_tile() +
+  theme(axis.text.x=element_text(color = "black", size=7, angle=30, vjust=.8, hjust=0.8),
+        axis.text.y=element_text(color = "black", size=7, angle=0, vjust=.8, hjust=0.8)
+        ) +
+  ggtitle("Correlation Heatmap")
+
+ggplotly(h_train_cormat_5)
+```
+
+Abaixo temos a correlação em ordem decrescente de **LotFrontage** e as demais variáveis numéricas. Note que **LotArea** é a que mais se correlaciona com ela, com uma correlação de 0.49.\
+
+```{r house-train-LF-cormat-03}
+h_train_cormat_3a <- h_train_cormat_3[h_train_cormat_3$Var1 == "LotFrontage" ,] 
+
+h_train_cormat_3a[order(h_train_cormat_3a$value, decreasing = TRUE),] %>%
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+
+Abaixo temos a correlação em ordem decrescente de **LotFrontage_log** e as demais variáveis numéricas. Note que **LotArea_log** é a que mais se correlaciona com ela, com uma correlação de 0.77.\
+
+```{r house-train-LF-cormat-04}
+h_train_cormat_3b <- h_train_cormat_3[h_train_cormat_3$Var1 == "LotFrontage_log" ,] 
+
+h_train_cormat_3b[order(h_train_cormat_3b$value, decreasing = TRUE),] %>%
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Note que a variável **LotArea** é a que tem correlação mais alta. Vale ressaltar que também observamos os maiores valores negativos e não somente os positivos.
+
+```{r house-train-LF-plot-03}
+#plot(ds2_all$LotArea, ds2_all$LotFrontage)
+#hist(ds2_all$LotArea)
+
+h_train1_chart_LF_7 = ggplot(data = ds2_all[ds2_all$table == "train" & !is.na(ds2_all$LotArea_log),], 
+                             aes(x = LotArea_log, y = LotFrontage_log))+
+  geom_point(color="lightblue")+
+  geom_smooth(method = "lm", se = TRUE, color='black')+
+  ggtitle("Gráfico de Dispersão") +
+  xlab("LotAre_log") + ylab("LotForntage_log")
+  
+ggplotly(h_train1_chart_LF_7)
+
+```
+
+A partir do gráfico acima, pode-se dizer que uma regressão linear simples entre as duas variáveis é possível. Vamos então verificar o ajuste desse modelo, ajustar os valores e inserí-los na base principal quando esse valor for faltante.\
+\
+Para essa regressão, vou considerar a base toda (tanto train quanto test) e fazer uma subdivisão de treino e teste aleatória, para verificar se o modelo é de fato bem preditivo.\
+
+```{r house-train-LF-04}
+ds2_all_LF <- ds2_all[, c("Id", "LotFrontage_log", "LotArea_log")]
+ds2_all_LF_rm <- na.omit(ds2_all_LF)
+
+set.seed(123)
+index_LF <- createDataPartition(ds2_all_LF_rm$LotFrontage_log, 
+                                p = 0.7, 
+                                list = FALSE)
+ds2_LF_train <- ds2_all_LF_rm[index_LF, ]
+ds2_LF_test  <- ds2_all_LF_rm[-index_LF, ]
+```
+
+
+### Modelo 1: com intercepto
+
+```{r house-train-LF-reg-01}
+h_LF_model1 <- lm( LotFrontage_log ~ LotArea_log , 
+                   data = ds2_LF_train)
+summary(h_LF_model1)
+
+#par(mfrow=c(2,2))
+#plot(h_LF_model1)
+autoplot(h_LF_model1)
+```
+
+### Modelo 2: sem intercepto
+
+```{r house-train-LF-reg-02}
+h_LF_model2 <- lm( LotFrontage_log ~ LotArea_log - 1 , 
+                   data = ds2_LF_train)
+summary(h_LF_model2)
+
+#par(mfrow=c(2,2))
+#plot(h_LF_model2)
+autoplot(h_LF_model2)
+```
+
+O Modelo 2 (sem intercepto) apresenta um R² de `r round(summary(h_LF_model2)$adj.r.squared*100,1)`%.
+
+```{r house-train-LF-reg-03}
+anova(h_LF_model1, h_LF_model2)
+```
+
+Analisando a ANOVA para os dois modelos a diferença da Soma Quadrada dos Resíduos (RSS) não aumentou muito quando retiramos o intercepto, mas o ajuste do modelo (R²) melhorou significativamente, de 
+`r round(summary(h_LF_model1)$adj.r.squared*100,1)`
+% para 
+`r round(summary(h_LF_model2)$adj.r.squared*100,1)`
+%.\
+\
+Vamos agora fazer o cross validation dos dois modelos usando resampling.\
+
+
+```{r house-train-LF-reg-04}
+# Specify resampling plan
+cv <- trainControl(
+  method = "repeatedcv", 
+  number = 10, 
+  repeats = 5
+)
+
+set.seed(123)  # for reproducibility
+cv_h_LF_model1 <- train(
+  form = LotFrontage_log ~ LotArea_log, 
+  data = ds2_LF_train, 
+  method = "lm",
+  trControl = cv,
+  preProcess = c("center", "scale"),
+  tuneGrid  = expand.grid(intercept = TRUE)
+)
+
+summary(cv_h_LF_model1)
+
+set.seed(123)  # for reproducibility
+cv_h_LF_model2 <- train(
+  form = LotFrontage_log ~ -1 + LotArea_log , 
+  data = ds2_LF_train, 
+  method = "lm",
+  trControl = cv,
+  preProcess = c("center", "scale"),
+  tuneGrid  = expand.grid(intercept = FALSE)
+)
+
+summary(cv_h_LF_model2)
+```
+
+Usando esse método de resampling, vemos que no final das contas, ambos modelos me dão erros e ajustes iguais, isso porque o cross validation nesse caso não consegue fazer a destinção de um modelo com ou sem intercepto. Mesmo usando a opção 
+`html tuneGrid  = expand.grid(intercept = FALSE) ` 
+mas isso só remove o incercepto depois do cálculo da regressão (com o intercepto) já ter sido feito, o que não é o que queremos.\
+
+```{r house-train-LF-reg-05}
+#### Evaluation
+# Extract out of sample performance measures
+summary(resamples(list(
+  model1 = cv_h_LF_model1, 
+  model2 = cv_h_LF_model2
+)))
+```
+
+Dessa maneira, vamos fazer o teste de modo simple, usando a base de teste  e calculando os erros.
+
+```{r house-train-LF-reg-06}
+summary(h_LF_model1)
+summary(h_LF_model2)
+
+ds2_LF_train$pred_m1 <- h_LF_model1$fitted.values
+ds2_LF_train$pred_m2 <- h_LF_model2$fitted.values
+
+ds2_LF_test$pred_m1 <- h_LF_model1 %>% predict(ds2_LF_test)
+ds2_LF_test$pred_m2 <- h_LF_model2 %>% predict(ds2_LF_test)
+```
+
+
+```{r house-train-LF-reg-07}
+table1_train_m1 <- data.frame(R2 = R2(ds2_LF_train$pred_m1, ds2_LF_train$LotFrontage_log),
+                              RMSE = RMSE(ds2_LF_train$pred_m1, ds2_LF_train$LotFrontage_log),
+                              MAE = MAE(ds2_LF_train$pred_m1, ds2_LF_train$LotFrontage_log)
+                              )
+
+table1_train_m2 <- data.frame(R2 = R2(ds2_LF_train$pred_m2, ds2_LF_train$LotFrontage_log),
+                              RMSE = RMSE(ds2_LF_train$pred_m2, ds2_LF_train$LotFrontage_log),
+                              MAE = MAE(ds2_LF_train$pred_m2, ds2_LF_train$LotFrontage_log)
+                              )
+
+table1_test_m1 <- data.frame(R2 = R2(ds2_LF_test$pred_m1, ds2_LF_test$LotFrontage_log),
+                             RMSE = RMSE(ds2_LF_test$pred_m1, ds2_LF_test$LotFrontage_log),
+                             MAE = MAE(ds2_LF_test$pred_m1, ds2_LF_test$LotFrontage_log)
+                             )
+
+table1_test_m2 <- data.frame(R2 = R2(ds2_LF_test$pred_m2, ds2_LF_test$LotFrontage_log),
+                             RMSE = RMSE(ds2_LF_test$pred_m2, ds2_LF_test$LotFrontage_log),
+                             MAE = MAE(ds2_LF_test$pred_m2, ds2_LF_test$LotFrontage_log)
+                             )
+
+table1 <- rbind(table1_train_m1, table1_train_m2, table1_test_m1, table1_test_m2)
+row.names(table1) <- c("train_model_1", "train_model_2", "test_model_1", "test_model_2")
+
+table1 %>% kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Como podemos ver as estatisticas que comparam os modelos, não faz muita diferença entre se ter ou não o intercepto, e como é mais lógico neste caso, vou usar o modelo sem intercepto como o modelo final.\
+
+```{r house-train-LF-reg-08}
+summary(h_LF_model2)
+
+exp(h_LF_model2$coefficients)
+```
+
+E explicação lógica desse modelo é a distância entre a casa e a rua possui uma relação linear com o tamanho total do terreno. Pelo modelo, temos que a cada uma unidade de acrescimo na variável **LrArea_log**, a variável **LotFrontage_log** aumenta 
+`r h_LF_model2$coefficients`
+. Se voltarmos ambas as variáveis para o normal (aplicandoa  função exponencial), temos que cada uma unidade de acrescimo na variável **LrArea_log**, a variável **LotFrontage** aumenta 
+`r exp(h_LF_model2$coefficients)`
+.\
+\
+Vamos então criar a variável preditiva na base de dados original e utilizar esses valores para preencher os faltantes.\
+
+
+```{r house-train-LF-reg-09}
+ds2_all$LotFrontage_log_pred = h_LF_model2 %>% predict(ds2_all)
+```
+
+
+```{r house-train-LF-reg-10}
+ds2_all$LotFrontage_log_2 <- ifelse(is.na(ds2_all$LotFrontage_log),
+                                    ds2_all$LotFrontage_log_pred,
+                                    ds2_all$LotFrontage_log)
+
+
+ds2_all$LotFrontage_2 <- ifelse(is.na(ds2_all$LotFrontage),
+                                    exp(ds2_all$LotFrontage_log_pred),
+                                    ds2_all$LotFrontage)
+```
+
+Vamos verificar como ficou a variável final com relação à original.\
+
+```{r house-train-LF-reg-11}
+h_train1_chart_LF_8 <- ggplot(ds2_all, aes(x = LotArea, 
+                                           y = LotFrontage_2, 
+                                           fill = is.na(LotFrontage))) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot") +
+  xlab("LotArea (ft²)") +
+  ylab("LotFrontage_2 (ft²)")
+
+h_train1_chart_LF_8
+```
+
+Resumo da variável que acabamos de predizer para a base de treino:\
+
+```{r house-train-LF-reg-12}
+summary(ds2_all[ds2_all$table == "train" , c("LotFrontage", "LotFrontage_2")])
+```
+
+Resumo da variável que acabamos de predizer para a base de teste:\
+
+```{r house-train-LF-reg-13}
+summary(ds2_all[ds2_all$table == "test" , c("LotFrontage", "LotFrontage_2")])
+```
+
+A variável ajustada parece estar um pouco mais inflada que a original, mas nada muito descrepante. Os valores mínimo e máximo continuam os mesmos em ambos subsets.\
+\
+Concluímos então essa etapa e vamos olhar agora para o modelo principal.\
+\
+
+## Variável Ano de Construção da Garagem (*GarageYrBlt*)
+
+Notamos que temos muitos valores faltantes nessa variável.
+
+```{r house-train-GYB-01}
+ds2_all_GYB_summary1 = ds2_all %>% 
+  dplyr::select(Id, GarageYrBlt, GarageDummy_, table) %>% 
+  group_by(table, GarageDummy_) %>% 
+  #filter(raca=="Branca") %>% 
+  summarise(
+    n = n(),
+    min = min(GarageYrBlt, na.rm = T),
+    max = max(GarageYrBlt, na.rm = T),
+    mean = mean(GarageYrBlt, na.rm = T),
+    median = median(GarageYrBlt, na.rm = T),
+    sd = sd(GarageYrBlt, na.rm = T),
+    missing = sum(is.na(GarageYrBlt))
+  ) 
+
+ds2_all_GYB_summary1 %>% kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Pela tablea acima é possível notar que todos os valores faltantes são de fato para propriedades que não possuem garagem, o que estaria correto.\
+Uma coisa que chama bastante atenção é o ano máximo da base de teste, mostrando o que possivelmente foi erro de digitação. Assim, vamos setar o ano de 2022, pois é quando estamos fazendo esse trabalho e qualquer ano acima disso vamos colocar como nulo.\
+
+```{r house-train-GYB-02}
+ds2_all$GarageYrBlt_ <- ifelse(ds2_all$GarageYrBlt > 2022, NA, ds2_all$GarageYrBlt) 
+```
+
+
+```{r house-train-GYB-03}
+ds2_all_GYB_summary2 = ds2_all %>% 
+  dplyr::select(Id, GarageYrBlt_, GarageDummy_, table) %>% 
+  group_by(table, GarageDummy_) %>% 
+  #filter(raca=="Branca") %>% 
+  summarise(
+    n = n(),
+    min = min(GarageYrBlt_, na.rm = T),
+    max = max(GarageYrBlt_, na.rm = T),
+    mean = mean(GarageYrBlt_, na.rm = T),
+    median = median(GarageYrBlt_, na.rm = T),
+    sd = sd(GarageYrBlt_, na.rm = T),
+    missing = sum(is.na(GarageYrBlt_))
+  ) 
+
+ds2_all_GYB_summary2 %>% kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+## Base de Dados Ajustada
+
+Aqui vamos remover as colunas que necessitavam de ajustes e deixar somente as ajustadas.\
+
+```{r house-train-p2-01}
+# removing old variables
+ds2_all_semi = ds2_all %>% dplyr::select(
+Id,
+table,
+SalePrice,
+SalePrice_log,
+`1stFlrSF`,
+`2ndFlrSF`,
+`3SsnPorch`,
+#Alley,
+Alley_,
+BedroomAbvGr,
+BldgType,
+BsmtDummy_,
+#BsmtCond,
+BsmtCond_,
+#BsmtExposure,
+BsmtExposure_,
+BsmtFinSF1,
+BsmtFinSF2,
+#BsmtFinType1,
+BsmtFinType1_,
+#BsmtFinType2,
+BsmtFinType2_,
+BsmtFullBath,
+BsmtHalfBath,
+#BsmtQual,
+BsmtQual_,
+BsmtUnfSF,
+#CentralAir,
+CentralAir_,
+Condition1,
+Condition2,
+Electrical,
+EnclosedPorch,
+#ExterCond,
+ExterCond_,
+Exterior1st,
+Exterior2nd,
+#ExterQual,
+ExterQual_,
+FenceDummy_,
+#Fence,
+Fence_,
+FirePlaceDummy_,
+#FireplaceQu,
+FireplaceQu_,
+Fireplaces,
+Foundation,
+FullBath,
+Functional,
+GarageArea,
+GarageCars,
+GarageDummy_,
+#GarageCond,
+GarageCond_,
+#GarageFinish,
+GarageFinish_,
+#GarageQual,
+GarageQual_,
+#GarageType,
+GarageType_,
+#GarageYrBlt,
+GarageYrBlt_,
+GrLivArea,
+HalfBath,
+Heating,
+#HeatingQC,
+HeatingQC_,
+HouseStyle,
+KitchenAbvGr,
+#KitchenQual,
+KitchenQual_,
+LandContour,
+LandSlope,
+LotArea,
+#LotArea_log,
+LotConfig,
+#LotFrontage,
+LotFrontage_2,
+#LotFrontage_log,
+#LotFrontage_log_2,
+#LotFrontage_log_pred,
+LotShape,
+LowQualFinSF,
+MasVnrDummy_,
+MasVnrArea,
+#MasVnrType,
+MasVnrType_,
+MiscFeatureDummy_,
+#MiscFeature,
+MiscFeature_,
+MiscVal,
+MoSold,
+#MSSubClass,
+MSSubClass_,
+MSZoning,
+Neighborhood,
+OpenPorchSF,
+#OverallCond,
+OverallCond_,
+#OverallQual,
+OverallQual_,
+PavedDrive,
+PoolArea,
+PoolDummy_,
+#PoolQC,
+PoolQC_,
+RoofMatl,
+RoofStyle,
+SaleCondition,
+SaleType,
+ScreenPorch,
+Street,
+TotalBsmtSF,
+TotRmsAbvGrd,
+Utilities,
+WoodDeckSF,
+YearBuilt,
+YearRemodAdd,
+YrSold
+)
+```
+
+### Valores faltantes
+
+Verificar a quantidade de valores faltantes na base final.\
+
+#### Train
+
+```{r house-train-p2-02}
+h_train2_summary1 <- as.data.frame(t(ds2_all_semi[ds2_all_semi$table == "train",] %>% 
+  summarise(across(everything(), ~ sum(is.na(.x))))))
+colnames(h_train2_summary1) <- c("Missing Observations")
+h_train2_summary1$`-` <- ""
+
+h_train2_summary1[h_train2_summary1$`Missing Observations` > 0, ] %>% 
+  arrange(desc(`Missing Observations`)) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+#### Test
+
+```{r house-train-p2-03}
+h_test2_summary1 <- as.data.frame(t(ds2_all_semi[ds2_all_semi$table == "test",] %>% 
+  summarise(across(everything(), ~ sum(is.na(.x))))))
+colnames(h_test2_summary1) <- c("Missing Observations")
+h_test2_summary1$`-` <- ""
+
+h_test2_summary1[h_test2_summary1$`Missing Observations` > 0, ] %>% 
+  arrange(desc(`Missing Observations`)) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Vamos remover os valores faltantes de forma condicional:
+
+```{r house-train-p2-04}
+ds2_all_semi = ds2_all_semi %>% mutate(
+  remove_rows = case_when(
+    GarageDummy_ == 1 & is.na(GarageYrBlt_) == TRUE ~ 1 ,
+    GarageDummy_ == 1 & is.na(GarageArea) == TRUE ~ 1 ,
+    GarageDummy_ == 1 & is.na(GarageCars) == TRUE ~ 1 ,
+    GarageDummy_ == 1 & is.na(GarageCond_) == TRUE ~ 1 ,
+    GarageDummy_ == 1 & is.na(GarageFinish_) == TRUE ~ 1 ,
+    GarageDummy_ == 1 & is.na(GarageQual_) == TRUE ~ 1 ,
+    PoolDummy_ == 1 & is.na(PoolQC_) == TRUE ~ 1 ,
+    is.na(BsmtDummy_) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtCond_) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtQual_) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtExposure_) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtFinType1_) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtFinType2_) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtFullBath) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtHalfBath) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtFinSF1) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtFinSF2) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(BsmtUnfSF) == TRUE ~ 1 ,
+    BsmtDummy_ == 1 & is.na(TotalBsmtSF) == TRUE ~ 1 ,
+    is.na(Exterior1st) == TRUE ~ 1 ,
+    is.na(Functional) == TRUE ~ 1 ,
+    KitchenAbvGr > 0 & is.na(KitchenQual_) == TRUE ~ 1 ,
+    is.na(MasVnrDummy_) == TRUE ~ 1 ,
+    MasVnrDummy_ == 1 & is.na(MasVnrType_) == TRUE ~ 1 ,
+    MasVnrDummy_ == 1 & is.na(MasVnrArea) == TRUE ~ 1 ,
+    is.na(MSZoning) == TRUE ~ 1 ,
+    is.na(SaleType) == TRUE ~ 1 ,
+    is.na(Utilities) == TRUE ~ 1 ,
+    is.na(Electrical) == TRUE ~ 1 ,
+    
+    TRUE ~ 0
+  )
+)
+```
+
+
+
+```{r house-train-p2-05}
+h_both2_summary1 <- as.data.frame(t(ds2_all_semi[ds2_all_semi$remove_rows == 0,] %>% 
+  summarise(across(everything(), ~ sum(is.na(.x))))))
+colnames(h_both2_summary1) <- c("Missing Observations")
+h_both2_summary1$`-` <- ""
+
+h_both2_summary1[h_both2_summary1$`Missing Observations` > 0, ] %>% 
+  arrange(desc(`Missing Observations`)) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Note que agora restaram somente os valores que são de fato valores reais. Para todos os casos, vamos deixar como está no momento.\
+
+```{r , eval=FALSE}
+ds2_all_semi[ds2_all_semi$remove_rows == 0 & is.na(ds2_all_semi$BsmtQual_),] %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+ds2_all_semi[ds2_all_semi$remove_rows == 0 & ds2_all_semi$BsmtFinType1_ == "Unf",] %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+ds2_all_semi[ds2_all_semi$remove_rows == 0 & is.na(ds2_all_semi$Electrical),] %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+ds2_all_semi[ds2_all_semi$remove_rows == 0 & is.na(ds2_all_semi$BsmtHalfBath),] %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+ds2_all_semi[is.na(ds2_all_semi$BsmtHalfBath),] %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+
+### Relação entre as variáveis
+
+```{r eval=FALSE}
+ggpairs(ds2_all_semi[ds2_all_semi$table == "train", c(3:4,5:20)], 
+        #ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+
+```{r eval=FALSE}
+ds2_all_semi_Bsmt = ds2_all_semi[ds2_all_semi$table == "train",] %>% 
+  dplyr::select("SalePrice" | contains("Bsm")) 
+
+ggpairs(ds2_all_semi_Bsmt,
+        ggplot2::aes(colour = as.factor(BsmtDummy_), alpha = 0.5)
+        ) + theme_bw()
+
+```
+
+```{r}
+ggpairs(ds2_all_semi[ds2_all_semi$table == "train", c(3:4,11:12)],
+        ggplot2::aes(colour = as.factor(BsmtDummy_), alpha = 0.5)
+        ) + theme_bw()
+```
+
+Pleo gráfico ascima podemos ver que os preços das casas são mais elevados quando a casa possui um porão. A correlação entre elas é fraca 
+`r round(cor(ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log, ds2_all_semi[ds2_all_semi$table == "train", ]$BsmtDummy_),2)`
+.\
+
+```{r}
+ggpairs(ds2_all_semi[ds2_all_semi$table == "train", c(3:4,11,56,84)],
+        ggplot2::aes(colour = as.factor(BsmtDummy_), alpha = 0.5)
+        ) + theme_bw()
+```
+
+A correlação entre A área total do porão e o log do preço de venda é 
+`r round(cor(ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log, ds2_all_semi[ds2_all_semi$table == "train", ]$TotalBsmtSF),2)`
+. Nem mesmo a área do lote está tão fortemente correlacionada com o preço. Aparentemente, área construída agrega mais valor na venda.\
+
+Utilizando o mapa de calor que fizemos acima,
+
+```{r}
+h_train1_cormat_1 <- select_if(ds2_all_semi[ds2_all_semi$table == "train", ], is.numeric) # Subset numeric columns (dplyr)
+h_train1_cormat_2 <- round( x = cor(na.omit(h_train_cormat_1)), digits=2)
+#head(h_train1_cormat_2)
+h_train1_cormat_3 <- melt(h_train_cormat_2)  # heatmap (reshape2)
+#head(h_train1_cormat_3)
+
+h_train1_cormat_4 <- ggplot(data = h_train_cormat_3, 
+            aes(x=Var1, y=Var2, fill = value)) +
+  geom_tile() +
+  theme(axis.text.x=element_text(color = "black", size=7, angle=30, vjust=.8, hjust=0.8),
+        axis.text.y=element_text(color = "black", size=7, angle=0, vjust=.8, hjust=0.8)
+        ) +
+  ggtitle("Correlation Heatmap")
+
+ggplotly(h_train1_cormat_4)
+```
+
+```{r}
+h_train1_cormat_5 <- ggplot(data = h_train1_cormat_3[h_train1_cormat_3$value > 0.5 | 
+                                      h_train1_cormat_3$value < -0.5,], 
+            aes(x=Var1, y=Var2, fill = value)) +
+  geom_tile() +
+  theme(axis.text.x=element_text(color = "black", size=7, angle=30, vjust=.8, hjust=0.8),
+        axis.text.y=element_text(color = "black", size=7, angle=0, vjust=.8, hjust=0.8)
+        ) +
+  ggtitle("Correlation Heatmap")
+
+ggplotly(h_train1_cormat_5)
+```
+
+```{r}
+h_train1_cormat_4$data[h_train1_cormat_4$data$Var1 == "SalePrice_log" ,] %>%
+  arrange(desc(value)) %>%
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+  
+```
+
+Analisando o gráfico acima, temos que:
+
+- **GrLivArea**: cor = 
+`r round(h_train1_cormat_4$data[h_train1_cormat_4$data$Var1 == "SalePrice_log" & h_train1_cormat_4$data$Var2 == "GrLivArea",]$value,2)`
+)  
+- **OverallQual**: cor = 
+`r round(h_train1_cormat_4$data[h_train1_cormat_4$data$Var1 == "SalePrice_log" & h_train1_cormat_4$data$Var2 == "OverallQual",]$value,2)`
+)  
+sendo essas as variáveis que possuem mais correlação com o preço de venda da casas.\
+
+```{r}
+ggpairs(ds2_all_semi[ds2_all_semi$table == "train", c(3:4,11,56,84, 76, 73, 47, 80, 88:90)],
+        ggplot2::aes(colour = SaleCondition, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+Conseguimor ver que a variável Área total do porão parece ser linearmente relacionada com o log to preço de venda da casa.
+
+#### Gráficos Gerais
+
+##### SalePrice_log & OverallQual_
+
+```{r}
+plot(x=ds2_all_semi[ds2_all_semi$table == "train", ]$OverallQual_, 
+     y=ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log,
+     xlab = "OverallQual_", ylab = "SalePrice_log")
+```
+
+##### SalePrice_log & GrLivArea
+
+```{r}
+plot(x=ds2_all_semi[ds2_all_semi$table == "train", ]$GrLivArea, 
+     y=ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log,
+     xlab = "GrLivArea", ylab = "SalePrice_log")
+```
+
+##### SalePrice_log & GarageCars
+
+```{r}
+plot(x=ds2_all_semi[ds2_all_semi$table == "train", ]$GarageCars, 
+     y=ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log,
+     xlab = "GarageCars", ylab = "SalePrice_log")
+```
+
+##### SalePrice_log & TotalBsmtSF
+
+```{r}
+plot(x=ds2_all_semi[ds2_all_semi$table == "train", ]$TotalBsmtSF, 
+     y=ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log,
+     xlab = "TotalBsmtSF", ylab = "SalePrice_log")
+```
+
+##### SalePrice_log & 1stFlrSF
+
+```{r}
+plot(x=ds2_all_semi[ds2_all_semi$table == "train", ]$`1stFlrSF`, 
+     y=ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log,
+     xlab = "1stFlrSF", ylab = "SalePrice_log")
+```
+
+##### SalePrice_log & YearBuilt
+
+```{r}
+boxplot(ds2_all_semi[ds2_all_semi$table == "train", ]$SalePrice_log ~ 
+          ds2_all_semi[ds2_all_semi$table == "train", ]$YearBuilt, 
+     xlab = "YearBuilt", ylab = "SalePrice_log")
+```
+
+
+
+# Modelagem [Modelling]
+
+A variável resposta é do tipo quantitativa contínua, pois ão os valores em que as casas foram vendidas. Assim, podemos usar <span style="color: blue;">Regressão Linear</span>, e como já foi mostrado acima, vamos usar o log do preço de venda ao invés da variável original.\
+
+```{r}
+ds2_all_train <- ds2_all_semi[ds2_all_semi$table == "train" & ds2_all_semi$remove_rows == 0, -c(2,91,46)]
+ds2_all_test <- ds2_all_semi[ds2_all_semi$table == "test" & ds2_all_semi$remove_rows == 0, -c(2,91,46)]
+```
+
+## Modelo 1
+
+Modelo com todas as variáveis.
+
+```{r}
+##Model 1
+houses_model1 <- lm(SalePrice_log ~ . , 
+                     data = ds2_all_train[,-c(1,2)])
+summary(houses_model1)
+```
+
+Esse modelo nos dá um R² de 
+`r round(summary(houses_model1)$adj.r.squared*100,1)`
+%. O que normalmente pode significar que está mais ajustado do que o necessário (overfitting).\
+
+```{r}
+autoplot(houses_model1)
+```
+
+
+
+
+## Modelo 2
+
+Vamos aplicar o stepwise.
+
+```{r}
+houses_model1_step <- houses_model1 %>% 
+  stepAIC(direction = "both", trace = FALSE)
+```
+
+Abaixo temos a ANOVA do stepwise, mostrando o modelo inicial e o final.
+
+```{r}
+houses_model1_step$anova
+```
+
+```{r}
+summary(houses_model1_step)
+```
+
+O modelo Stepwise fornece um R² de 
+`r round(summary(houses_model1_step)$adj.r.squared*100,1)`
+%, o seja, atinge um número similar de ajustamento com menos variáveis.\
+
+
+```{r}
+autoplot(houses_model1_step)
+```
+
+## Modelo 3
+
+```{r}
+##Model 3
+houses_model3 <- lm(SalePrice_log ~ OverallQual_ + GrLivArea + GarageArea + TotalBsmtSF + YearBuilt , 
+                     data = ds2_all_train)
+summary(houses_model3)
+
+autoplot(houses_model3)
+```
+
+## Modelo 4
+
+```{r}
+##Model 4
+houses_model4 <- lm(SalePrice_log ~ GrLivArea + GarageArea + TotalBsmtSF + YearBuilt , 
+                     data = ds2_all_train)
+summary(houses_model4)
+
+autoplot(houses_model4)
+```
+
+## Modelo 5
+
+```{r}
+##Model 5
+houses_model5 <- lm(SalePrice_log ~ GrLivArea + GarageArea + TotalBsmtSF + YearBuilt + SaleCondition, 
+                     data = ds2_all_train)
+summary(houses_model5)
+
+autoplot(houses_model5)
+```
+
+## Modelo 6
+
+```{r}
+##Model 6
+houses_model6 <- lm(SalePrice_log ~ GrLivArea + GarageArea + TotalBsmtSF + YearBuilt + MSSubClass_, 
+                     data = ds2_all_train)
+summary(houses_model6)
+
+autoplot(houses_model6)
+```
+
+## Cross-Validation
+
+Agora que já temos uma idéa de quais variáveis deverão ser incluídas no modelo, vamos fazer o cross validation.\
+
+```{r}
+# Model 1: all variables
+set.seed(123)
+cv_model1 <- train(
+  SalePrice_log ~ ., 
+  data = ds2_all_train[,-c(1,2)], 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 2: Stepwise selected
+set.seed(123)
+cv_model2 <- train(
+  SalePrice_log ~  `3SsnPorch` + BsmtExposure_ + BsmtFinSF1 + BsmtFinSF2 + 
+    BsmtFullBath + BsmtUnfSF + CentralAir_ + Condition1 + Condition2 + 
+    Electrical + EnclosedPorch + Exterior1st + Fireplaces + Foundation + 
+    FullBath + Functional + GarageArea + GarageCars + GarageCond_ + 
+    GarageQual_ + GarageType_ + GrLivArea + HalfBath + Heating + 
+    HeatingQC_ + KitchenAbvGr + KitchenQual_ + LandSlope + LotArea + 
+    LotConfig + LotFrontage_2 + MasVnrType_ + MSSubClass_ + MSZoning + 
+    Neighborhood + OverallCond_ + OverallQual_ + PoolArea + PoolQC_ + 
+    RoofMatl + RoofStyle + SaleCondition + SaleType + ScreenPorch + 
+    Street + Utilities + WoodDeckSF + YearBuilt + YearRemodAdd + 
+    FenceDummy_ + LowQualFinSF + ExterCond_ , 
+  data = ds2_all_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 3: 
+set.seed(123)
+cv_model3 <- train(
+  SalePrice_log ~ OverallQual_ + GrLivArea + GarageArea + TotalBsmtSF + YearBuilt, 
+  data = ds2_all_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 4: 
+set.seed(123)
+cv_model4 <- train(
+  SalePrice_log ~ GrLivArea + GarageArea + TotalBsmtSF + YearBuilt, 
+  data = ds2_all_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 5: 
+set.seed(123)
+cv_model5 <- train(
+  SalePrice_log ~ GrLivArea + GarageArea + TotalBsmtSF + YearBuilt + SaleCondition, 
+  data = ds2_all_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 6: 
+set.seed(123)
+cv_model6 <- train(
+  SalePrice_log ~ GrLivArea + GarageArea + TotalBsmtSF + YearBuilt + MSSubClass_, 
+  data = ds2_all_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+```
+
+
+```{r}
+# extract out of sample performance measures
+rbind(
+      modelo_1 = cv_model1$results, 
+      modelo_stepwise = cv_model2$results, 
+      modelo_3 = cv_model3$results,
+      modelo_4 = cv_model4$results,
+      modelo_5 = cv_model5$results,
+      modelo_6 = cv_model6$results
+)  %>% 
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Note que com o cross-validation, o R² dos modelos 1 e 2 cairam de 
+`r round(summary(houses_model1)$adj.r.squared*100,1)`
+% e 
+`r round(summary(houses_model1_step)$adj.r.squared*100,1)`
+% respectivamente, para 
+`r round(cv_model1$results$Rsquared*100,1)`
+% e 
+`r round(cv_model2$results$Rsquared*100,1)`
+.\
+\
+
+# Avaliação [Evaluation]
+
+Usando o quadro acima, decidimos por usar o modelo 6 para prever a base de teste.\
+\
+O modelo 6 nos dá um ajuste de 
+`r round(cv_model6$results$Rsquared*100,1)`
+%. Analisando a tablea abaixo temos que 
+
+```{r}
+summary(cv_model6)
+```
+
+Já que calculamos o modelo usando o log da variável resposta, para interpretá-lo, temos que fazer a exponencial das variáveis.\
+
+```{r}
+exp(summary(cv_model6)$coefficients[,1])
+```
+
+Ou seja, o preço de venda das casas no modelo 3 é emplicado pelas variáveis:
+
+- MSSubClass_\
+- GrLivArea\
+- GarageArea\
+- TotalBsmtSF\
+- YearBuilt\
+
+Interpretando algumas das variáveis, temos que para cada 1 unidade de mudança na variável Área Total do porão (TotalBsmtSF) o preço de venda da casa aumenta em 
+`r exp(summary(cv_model6)$coefficients["TotalBsmtSF",1])`
+. Para o caso da variável que avalia a o tipo de residência (MSSubClass_), como essa é uma variável qualitativa notamos que o fator 20 (casas de 1 andar contruídas depois de 1945) está incluido no intercepto, mas para o caso das casas de 1 andar contruidas até 1945 (30), temos que o preço de venda sa casa aumenta em 
+`r exp(summary(cv_model6)$coefficients["MSSubClass_40",1])`
+.\
+
+## Gráfico da Variável Predita vs Atual
+
+```{r}
+ds2_all_train$SalePrice_log_pred <- predict(cv_model6, ds2_all_train)
+ds2_all_train$SalePrice_pred <- exp(ds2_all_train$SalePrice_log_pred)
+
+```
+
+
+```{r}
+ggplot(data=ds2_all_train, aes(x=c(1:nrow(ds2_all_train)))) + 
+  geom_point(aes(y = SalePrice, color = "Actual"), alpha = 0.5) +
+  geom_point(aes(y = SalePrice_pred, color = "Predicted"), alpha = 0.5) +
+  #labs(color='Transported') +
+  ggtitle("Gráfico Variável SalePredict") +
+  ylab("SalePrice") +
+  xlab("ID") 
+```
+
+
+# Aplicação [Deployment]
+
+Vamos então para a parte mais esperada, fazer a predição da base **Test**.
+Utilizo o Modelo 6 para fazer a predição:
+
+```{r}
+ds2_all_test$SalePrice_log_pred <- predict(cv_model6, ds2_all_test)
+ds2_all_test$SalePrice_pred <- exp(ds2_all_test$SalePrice_log_pred)
+```
+
+Faço o gráfico mostrando a variável predita com a variável resposta que neste caso veio do arquivo sample_submission:
+
+```{r}
+ggplot(data=ds2_all_test, aes(x=c(1:nrow(ds2_all_test)))) + 
+  geom_point(aes(y = SalePrice, color = "Actual"), alpha = 0.5) +
+  geom_point(aes(y = SalePrice_pred, color = "Predicted"), alpha = 0.5) +
+  #labs(color='Transported') +
+  ggtitle("Gráfico Variável SalePredict (base test)") +
+  ylab("SalePrice") +
+  xlab("ID") 
+```
+
+Aparentemente, tivemos alsuns valores bem fora da dos que seriam os corretos. Vamos verificar a acurácia desse modelo comparando com as respostas que estavam no aquivo *sample_submission*, lembrando que isso não acontece no machine learning, na realidade não temos a resposta, mas vale fazer essa verificação aqui.\
+
+```{r}
+MSE <- ds2_all_test %>%
+  mutate(error = SalePrice_pred - SalePrice,
+         sq.error = error^2) %>%
+  summarise(MSE = mean(sq.error))
+
+RMSE <- sqrt(MSE)
+
+table1 <- cbind(MSE, RMSE) 
+colnames(table1) <- c("MSE", "RMSE")
+table2 <- cbind(cv_model3$results$MAE, cv_model3$results$RMSE)
+colnames(table2) <- c("MSE", "RMSE")
+table3 <- rbind(table1,table2)
+row.names(table3) <- c("test", "train")
+
+round(table3,2) %>% 
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Fazendo essa comparação, notamos que o erro da base de teste é muito grande, mostrando que esse modelo não tem um bom ajuste  nessa base. Isso pode ser um indicativo que a base de teste era muito diferente da base de treino.\
+\
+Por exemplo, se pegarmos o summary da variável resposta de ambas as bases:\
+
+```{r}
+summary(ds2_all_train$SalePrice)
+
+summary(ds2_all_test$SalePrice)
+```
+
+Já podemos ver que a base de treino tem uma variabilidade maior, indo de um valor pequeno até um muito grande, já a base de teste possui uma variabilidade menor, indicando assim que outliers no modelo de treino deveriam ter sido melhor tratado, pois podem estar causando interferencia no modelo preditivo final.\
+\
+Para se obter um melhor ajuste seria necessário voltar alguns passos e rever toda essa modelagem. Contudo, na vida real, no machine leaning, não temos a resposta.\
+
+## Exportando o arquivo final
+
+```{r}
+test_keep <- c("Id", "SalePrice_pred")
+ds2_test_final_submission <- ds2_all_test[,test_keep]
+
+head(ds2_test_final_submission) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+
+```{r}
+write.csv(ds2_test_final_submission,".\\final_submission_house.csv", row.names = FALSE)
+```
+
+
+

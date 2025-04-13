@@ -1,0 +1,1811 @@
+---
+title: "ML Modelos Supervisionados Clássicos" 
+subtitle: "Projeto Final (1) - Spaceship Titanic"
+date: "2022-06-30"
+author: 
+  - "Francisco Moura Fé"
+  - "Marcos Alves"
+  - "Marcus Dias"
+  - "Raquel Marques"
+
+output:
+  rmdformats::robobook:
+    use_bookdown: FALSE
+    toc_depth: 5
+    toc_float: TRUE
+    code_folding: hide
+---
+
+
+
+# Preparação Inicial
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+options(scipen=10000)
+```
+
+Definir diretório e pacotes necessários.
+
+```{r packages1, eval=FALSE}
+load.pks = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "tidyr",
+  "nortest",
+  "gridExtra",
+  "kableExtra",
+  "visdat",
+  "stringr",
+  "mlbench",
+  "caret",
+  "GGally",
+  "RColorBrewer",
+  "ROCR",
+  "pROC",
+  "rmarkdown",
+  "qqplotr",
+  "reshape2",
+  "ggfortify",
+  "car",
+  "vip",
+  "MASS"
+)
+
+lapply(load.pks, require, character.only = TRUE)
+```
+
+
+
+```{r packages2, message=FALSE, warning=FALSE, include=FALSE}
+## Carregar Pacotes
+
+load.pks = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "tidyr",
+  #"Hmisc",
+  #"DescTools",
+  "nortest",
+  #"esquisse",
+  "gridExtra",
+  "kableExtra",
+  "visdat",
+  "stringr",
+  "mlbench",
+  "caret",
+  "GGally",
+  "RColorBrewer",
+  "ROCR",
+  "pROC",
+  "rmarkdown",
+  #"formattable",
+  "qqplotr",
+  "reshape2",
+  "ggfortify",
+  "car",
+  "vip",
+  "MASS"
+  
+)
+
+if(sum(as.numeric(!load.pks %in% installed.packages())) != 0){
+  instalation <- load.pks[!load.pks %in% installed.packages()]
+  for(i in 1:length(instalation)) {
+    install.packages(instalation, dependencies = T)
+    break()}
+  sapply(load.pks, require, character = T) 
+} else {
+  sapply(load.pks, require, character = T) 
+}
+```
+
+
+```{r load-path-titanic, include=FALSE, message=FALSE, warning=FALSE}
+# DataSet directory
+path <- c("C:\\0. R\\MBA\\DS&S\\M6 - ML Modelos supervisionados clássicos\\2022-06-04\\Projeto\\Projeto")
+
+setwd(path)
+
+getwd()
+```
+
+# Spaceship Titanic
+
+https://www.kaggle.com/competitions/spaceship-titanic/data
+\
+
+# Entendimento do Negócio [Business Understanding]
+
+## Objetivo
+
+O objetivo é prever se um passageiro foi transportado para uma dimensão alternativa durante a colisão da
+nave espacial Titanic com a anomalia do espaço-tempo.\
+Para ajudá-lo a fazer essas previsões, você recebe um
+conjunto de registros pessoais recuperados do sistema de computador danificado da nave.\
+
+
+# Entendimento dos Dados [Data Understanding]
+
+## Descrição das Variáveis
+
+<span style="color: blue;">**train.csv**</span> - 
+Registros pessoais de cerca de dois terços (~8700) dos passageiros.
+
+- *PassengerId* - Um ID exclusivo para cada passageiro. Cada ID assume o formato **gggg_pp**, onde:
+  + **gggg** indica um grupo com o qual o passageiro está viajando e 
+  + **pp** é seu número dentro do grupo.\
+As pessoas em um grupo geralmente são membros da família, mas nem sempre.\
+\
+- *HomePlanet* - O planeta de onde o passageiro partiu, normalmente seu planeta de residência permanente.
+
+- *CryoSleep* - Indica se o passageiro optou por ser colocado em animação suspensa durante a viagem. 
+Os passageiros em sono criogênico estão confinados em suas cabines.
+
+- *Cabine* - O número da cabine onde o passageiro está hospedado.
+Assume o formato deck/num/side, onde o lado pode ser **P** para bombordo ou **S** para estibordo.
+
+- *Destino* - O planeta para o qual o passageiro irá desembarcar.
+
+- *Idade* - A idade do passageiro.
+
+- *VIP* - Se o passageiro pagou pelo serviço VIP especial durante a viagem.
+
+- *RoomService, FoodCourt, ShoppingMall, Spa, VRDeck* - Valor que o passageiro cobrou em cada uma
+das muitas comodidades de luxo da Spaceship Titanic.
+
+- *Nome* - O nome e sobrenome do passageiro.
+
+- *Transportado* - Se o passageiro foi transportado para outra dimensão. Este é o target, a coluna que você está tentando prever.\
+\
+<span style="color: blue;">**test.csv**</span> -
+Registros pessoais para o terço restante (~4300) dos passageiros, para serem usados como dados de
+teste.\
+Sua tarefa é prever o valor de Transportado para os passageiros neste conjunto.\
+\
+<span style="color: blue;">**sample_submission.csv**</span> -
+Um arquivo de envio no formato correto.
+
+- *PassengerId* - Id para cada passageiro no conjunto de teste.
+
+- *Transportado* - O alvo. Para cada passageiro, preveja *Verdadeiro* ou *Falso*.
+
+----------------------------------------------------------------
+
+# Preparação dos Dados [Data Preparation]
+
+## Importação dos Dados
+
+Vamos importar os 3 bancos: Train, Test e Sample_Submission.
+
+```{r load-data-titanic, message=FALSE, warning=FALSE}
+ds1_train <- read_csv(".\\spaceship-titanic\\train.csv")
+ds1_test <- read_csv(".\\spaceship-titanic\\test.csv")
+ds1_submission <- read_csv(".\\spaceship-titanic\\sample_submission.csv")
+```
+
+Antes de ajustar as variáveis, vamos combinar os dados para que as mudanças sejam feitas de forma mais rápida.\
+
+```{r load-data-titanic-2, message=FALSE, warning=FALSE}
+#merge between test & submission
+ds1_test_submission <- merge(ds1_test, ds1_submission, by=c("PassengerId", "PassengerId"))
+
+ds1_train$table <- "train"
+ds1_test_submission$table <- "test"
+
+ds1_all <- rbind(ds1_train, ds1_test_submission)
+
+```
+
+
+## Ajuste das Variáveis
+
+Separou-se a variável **PassengerId** em GroupID e QtyID.\
+Separou-se a variável **Name** em Name_1 e Name_2.\
+Separou-se a variável **Cabin** em Deck, Num_cab e Side.\
+Transformação das variáveis binárias (True/False para 1/0): Transported, CyroSleep e VIP.
+
+```{r titanic-train-mod-1}
+ds1_all <- ds1_all %>%
+  mutate(GroupID = as.factor(word(PassengerId, 1, sep="_")),
+           QtyID = as.factor(word(PassengerId, 2, sep="_")),
+          First_Name = as.factor(word(Name, 1, sep=" ")),
+          Last_Name = as.factor(word(Name, 2, sep=" "))
+         )
+
+max_qty <- ds1_all %>% 
+  group_by(GroupID) %>% 
+  summarise(QtyID_max = max(
+    as.numeric(word(PassengerId, 2, sep="_")), na.rm = TRUE)
+    )
+
+ds1_all <- left_join(ds1_all, max_qty, 
+              by = c("GroupID" = "GroupID"))
+
+ds1_all <- ds1_all %>%
+  mutate(Deck = as.factor(word(Cabin, 1, sep="/")),
+         Num_cab = as.factor(word(Cabin, 2, sep="/")),
+         Side = as.factor(word(Cabin, 3, sep="/"))
+         )
+
+
+ds1_all <- ds1_all %>%
+  mutate(
+    Transported_ = as.factor(case_when(
+      Transported == "TRUE"  ~ 1,
+      Transported == "FALSE" ~ 0
+  ))
+)
+
+ds1_all <- ds1_all %>%
+  mutate(
+    CryoSleep_ = as.factor(case_when(
+      CryoSleep == "TRUE"  ~ 1,
+      CryoSleep == "FALSE" ~ 0
+  ))
+)
+
+ds1_all <- ds1_all %>%
+  mutate(
+    VIP_ = as.factor(case_when(
+      VIP == "TRUE"  ~ 1,
+      VIP == "FALSE" ~ 0
+  ))
+)
+
+
+
+
+```
+
+Snapshot:
+
+```{r titanic-train-head-1}
+head(ds1_all) %>%  kbl %>%  kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+```
+
+
+## Resumo dos Dados
+
+### Train
+
+```{r titanic-train-summary-1 }
+train1_summary <- summary(ds1_all[ds1_all$table == "train",])
+
+train1_summary %>%  kbl %>%  kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+train1_summary2 <- ds1_all[ds1_all$table == "train",] %>%
+  dplyr::select(Transported_) %>%
+  summarise(
+    n_train = n()
+  )
+
+```
+
+Notamos que algumas das variáveis possuem valores faltantes:
+
+- PassengerId: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$PassengerId), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$PassengerId), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- HomePlanet: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$HomePlanet), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$HomePlanet), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- CyroSleep: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$CryoSleep), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$CryoSleep), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- Cabin: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$Cabin), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$Cabin), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- Destination: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$Destination), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$Destination), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- Age: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$Age), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$Age), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- VIP: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$VIP), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$VIP), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- RoomService: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$RoomService), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$RoomService), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- FoodCourt: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$FoodCourt), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$FoodCourt), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- ShoppingMall: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$ShoppingMall), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$ShoppingMall), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- SPA: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$Spa), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$Spa), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- VRDeck: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$VRDeck), na.rm = TRUE)`</span> 
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$VRDeck), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- Name: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$Name), na.rm = TRUE)`</span> 
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$Name), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+- Transported: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_train$Transported), na.rm = TRUE)`</span> 
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_train$Transported), na.rm = TRUE) / train1_summary2$n_train,3)*100,"%") `</span>
+
+
+### Test
+
+```{r titanic-test-summary-1}
+test1_summary <- summary(ds1_all[ds1_all$table == "test",])
+
+test1_summary %>%  kbl %>%  kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+test1_summary2 <- ds1_all[ds1_all$table == "test",] %>%
+  dplyr::select(CryoSleep_) %>%
+  summarise(
+    n_test = n()
+  )
+```
+
+Notamos que algumas das variáveis possuem valores faltantes:
+
+- PassengerId: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$PassengerId), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$PassengerId), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- HomePlanet: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$HomePlanet), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$HomePlanet), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- CyroSleep: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$CryoSleep), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$CryoSleep), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- Cabin: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$Cabin), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$Cabin), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- Destination: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$Destination), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$Destination), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- Age: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$Age), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$Age), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- VIP: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$VIP), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$VIP), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- RoomService: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$RoomService), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$RoomService), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- FoodCourt: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$FoodCourt), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$FoodCourt), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- ShoppingMall: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$ShoppingMall), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$ShoppingMall), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- SPA: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$Spa), na.rm = TRUE)` </span>
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$Spa), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- VRDeck: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$VRDeck), na.rm = TRUE)`</span> 
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$VRDeck), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+- Name: 
+<span style="color:#333FFF;">`r sum(is.na(ds1_test$Name), na.rm = TRUE)`</span> 
+que representa 
+<span style="color:#333FFF;">`r paste0(round(sum(is.na(ds1_test$Name), na.rm = TRUE) / test1_summary2$n_test,3)*100,"%") `</span>
+
+
+## Valores Faltantes
+
+Podemos tentar fazer a análise de duas maneiras distintas, ou remover todos os valores faltantes de todas as variáveis, ou atribuir valores distintos, para que se tenha uma análise diferenciada desse grupo.
+
+### Remover completamente
+
+Eliminar completamente os valores faltantes da base.
+
+```{r titanic-missing-1}
+ds1_all2 <- na.omit(ds1_all)
+
+ds1_all2$Total_Spend <- ds1_all2$RoomService +
+                              ds1_all2$FoodCourt +
+                              ds1_all2$ShoppingMall +
+                              ds1_all2$Spa +
+                              ds1_all2$VRDeck
+
+```
+
+
+### Summary
+
+#### Train
+
+```{r titanic-train-summary-2}
+train2_summary <- summary(ds1_all2[ds1_all2$table == "train", ])
+
+train2_summary %>%  kbl %>%  kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+train2_summary2 <- ds1_all2[ds1_all2$table == "train", ] %>%
+  dplyr::select(CryoSleep_) %>%
+  summarise(
+    n_test = n()
+  )
+```
+
+#### Test
+
+```{r titanic-test-summary-2}
+test2_summary <- summary(ds1_all2[ds1_all2$table == "test", ])
+
+test2_summary %>%  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+test2_summary2 <- ds1_all2[ds1_all2$table == "test", ] %>%
+  dplyr::select(CryoSleep_) %>%
+  summarise(
+    n_test = n()
+  )
+```
+
+
+### Atribuir valores distintos
+
+Ao invés de remover os valores faltantes vamos atribuir valores diferentes do restante.\
+Para as variáveis qualitativas como *HomePlanet*, *CryoSleep*, *Cabin*, *Destination* e *Name* para os valores faltantes vamos atribuir **"Not Defined"**.\
+Para as variáveis qualitativas como *Deck* e *Side*, vamos usar **"Z"** para os valores faltantes.\
+Para a variável quantitativa que indica o número da cabine *Num_cab*, atribuímos o número **9999** onde o valor estava faltando.\
+Para as variáveis quantitativas contínuas como *Age*, *RoomService*, *FoodCourt*, *ShoppingMall*, *SPA* e *VRDeck*, decidiu-se por inserir o valor mediano do grupo em que essa variável fantante se encontrava. Caso a variável faltante não tenha nenhum valor dentro do grupo atribuiu-se o valor mediano geral da base.
+
+#### Train
+
+```{r titanic-train-replace-1}
+#Variáveis qualitativas
+ds1_all3 <- ds1_all
+ds1_all3$HomePlanet <- ifelse(is.na(ds1_all3$HomePlanet), "Not Defined", ds1_all3$HomePlanet)
+ds1_all3$CryoSleep <- ifelse(is.na(ds1_all3$CryoSleep), "Not Defined" , ds1_all3$CryoSleep)
+ds1_all3$CryoSleep_ <- ifelse(is.na(ds1_all3$CryoSleep_), 9 , ds1_all3$CryoSleep_)
+ds1_all3$Cabin <- ifelse(is.na(ds1_all3$Cabin), "Not Defined" , ds1_all3$Cabin)
+ds1_all3$Deck <- ifelse(is.na(ds1_all3$Deck), "Z" , ds1_all3$Deck)
+ds1_all3$Side <- ifelse(is.na(ds1_all3$Side), "Z" , ds1_all3$Side)
+ds1_all3$Destination <- ifelse(is.na(ds1_all3$Destination), "Not Defined" , ds1_all3$Destination)
+ds1_all3$Name <- ifelse(is.na(ds1_all3$Name), "Not Defined" , ds1_all3$Name)
+
+#Número da Cabine
+# max(unique(as.numeric(ds1_all3$Num_cab)), na.rm = TRUE) # numero mais alto de cabine
+ds1_all3$Num_cab <- ifelse(is.na(ds1_all3$Num_cab), 9999 , ds1_all3$Num_cab)
+
+## TRAIN
+#Variáveis quantitativas
+# median by GroupID
+na_bygroup_train <- ds1_all[ds1_all$table == "train",] %>%
+  dplyr::select(GroupID, QtyID_max, QtyID, Age, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) %>%
+  group_by(GroupID) %>%
+  summarise(
+    QtyID_x_g = max(as.numeric(QtyID), na.rm=TRUE),
+    Age_na_g = median(Age, na.rm=TRUE),
+    RoomService_na_g = median(RoomService, na.rm=TRUE),
+    FoodCourt_na_g = median(FoodCourt, na.rm=TRUE),
+    ShoppingMall_na_g = median(ShoppingMall, na.rm=TRUE),
+    Spa_na_g = median(Spa, na.rm=TRUE),
+    VRDeck_na_g = median(VRDeck, na.rm=TRUE)
+  )
+
+#na_bygroup_train %>%  kbl %>% kable_paper("hover", full_width = F)
+
+# Median overall
+na_train <- ds1_all[ds1_all$table == "train",] %>%
+  dplyr::select(Age, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) %>%
+  summarise(
+    Age_na = median(Age, na.rm=TRUE),
+    RoomService_na = median(RoomService, na.rm=TRUE),
+    FoodCourt_na = median(FoodCourt, na.rm=TRUE),
+    ShoppingMall_na = median(ShoppingMall, na.rm=TRUE),
+    Spa_na = median(Spa, na.rm=TRUE),
+    VRDeck_na = median(VRDeck, na.rm=TRUE)
+  )
+
+#na_train %>%  kbl %>% kable_paper("hover", full_width = F)
+
+# Mean overall
+na_train_mean <- ds1_all[ds1_all$table == "train",] %>%
+  dplyr::select(Age, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) %>%
+  summarise(
+    Age_na = mean(Age, na.rm=TRUE),
+    RoomService_na = mean(RoomService, na.rm=TRUE),
+    FoodCourt_na = mean(FoodCourt, na.rm=TRUE),
+    ShoppingMall_na = mean(ShoppingMall, na.rm=TRUE),
+    Spa_na = mean(Spa, na.rm=TRUE),
+    VRDeck_na = mean(VRDeck, na.rm=TRUE)
+  )
+
+#na_train_mean %>%  kbl %>% kable_paper("hover", full_width = F)
+
+## TEST
+#Variáveis quantitativas
+# median by GroupID
+na_bygroup_test <- ds1_all[ds1_all$table == "test",] %>%
+  dplyr::select(GroupID, QtyID_max, QtyID, Age, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) %>%
+  group_by(GroupID) %>%
+  summarise(
+    QtyID_x_g = max(as.numeric(QtyID), na.rm=TRUE),
+    Age_na_g = median(Age, na.rm=TRUE),
+    RoomService_na_g = median(RoomService, na.rm=TRUE),
+    FoodCourt_na_g = median(FoodCourt, na.rm=TRUE),
+    ShoppingMall_na_g = median(ShoppingMall, na.rm=TRUE),
+    Spa_na_g = median(Spa, na.rm=TRUE),
+    VRDeck_na_g = median(VRDeck, na.rm=TRUE)
+  )
+
+#na_bygroup_test %>%  kbl %>% kable_paper("hover", full_width = F)
+
+# Median overall
+na_test <- ds1_all[ds1_all$table == "test",] %>%
+  dplyr::select(Age, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) %>%
+  summarise(
+    Age_na = median(Age, na.rm=TRUE),
+    RoomService_na = median(RoomService, na.rm=TRUE),
+    FoodCourt_na = median(FoodCourt, na.rm=TRUE),
+    ShoppingMall_na = median(ShoppingMall, na.rm=TRUE),
+    Spa_na = median(Spa, na.rm=TRUE),
+    VRDeck_na = median(VRDeck, na.rm=TRUE)
+  )
+
+#na_test %>%  kbl %>% kable_paper("hover", full_width = F)
+
+# Mean overall
+na_test_mean <- ds1_all[ds1_all$table == "test",] %>%
+  dplyr::select(Age, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) %>%
+  summarise(
+    Age_na = mean(Age, na.rm=TRUE),
+    RoomService_na = mean(RoomService, na.rm=TRUE),
+    FoodCourt_na = mean(FoodCourt, na.rm=TRUE),
+    ShoppingMall_na = mean(ShoppingMall, na.rm=TRUE),
+    Spa_na = mean(Spa, na.rm=TRUE),
+    VRDeck_na = mean(VRDeck, na.rm=TRUE)
+  )
+
+#na_test_mean %>%  kbl %>% kable_paper("hover", full_width = F)
+
+
+```
+
+Inserindo as colunas calculadas na base.
+
+```{r titanic-train-replace-2}
+ds1_all3_train <- left_join(ds1_all3[ds1_all3$table == "train",], na_bygroup_train,
+                        by = c("GroupID" = "GroupID"),
+                        suffix = c("",""))
+
+ds1_all3_train <- cbind(ds1_all3_train, na_train)
+```
+
+```{r titanic-test-replace-2}
+ds1_all3_test <- left_join(ds1_all3[ds1_all3$table == "test",], na_bygroup_test,
+                        by = c("GroupID" = "GroupID"),
+                        suffix = c("",""))
+
+ds1_all3_test <- cbind(ds1_all3_test, na_test)
+```
+
+
+Modificando os valores faltantes:
+
+#### Train
+
+```{r titanic-train-replace-3}
+
+ds1_all3_train$Age <- ifelse(is.na(ds1_all3_train$Age),
+                           ifelse(!is.na(ds1_all3_train$Age_na_g),
+                                  ds1_all3_train$Age_na_g,
+                                  ds1_all3_train$Age_na),
+                           ds1_all3_train$Age)
+
+ds1_all3_train$RoomService <- ifelse(is.na(ds1_all3_train$RoomService),
+                                  ifelse(!is.na(ds1_all3_train$RoomService_na_g),
+                                         ds1_all3_train$RoomService_na_g,
+                                         ds1_all3_train$RoomService_na),
+                                  ds1_all3_train$RoomService)
+
+ds1_all3_train$FoodCourt <- ifelse(is.na(ds1_all3_train$FoodCourt),
+                                ifelse(!is.na(ds1_all3_train$FoodCourt_na_g),
+                                       ds1_all3_train$FoodCourt_na_g,
+                                       ds1_all3_train$FoodCourt_na),
+                                ds1_all3_train$FoodCourt)
+
+ds1_all3_train$ShoppingMall <- ifelse(is.na(ds1_all3_train$ShoppingMall),
+                                   ifelse(!is.na(ds1_all3_train$ShoppingMall_na_g),
+                                          ds1_all3_train$ShoppingMall_na_g,
+                                          ds1_all3_train$ShoppingMall_na),
+                                   ds1_all3_train$ShoppingMall)
+
+ds1_all3_train$Spa <- ifelse(is.na(ds1_all3_train$Spa),
+                           ifelse(!is.na(ds1_all3_train$Spa_na_g),
+                                  ds1_all3_train$Spa_na_g,
+                                  ds1_all3_train$Spa_na),
+                           ds1_all3_train$Spa)
+
+ds1_all3_train$VRDeck <- ifelse(is.na(ds1_all3_train$VRDeck),
+                             ifelse(!is.na(ds1_all3_train$VRDeck_na_g),
+                                    ds1_all3_train$VRDeck_na_g,
+                                    ds1_all3_train$VRDeck_na),
+                             ds1_all3_train$VRDeck)
+
+ds1_all3_train$Total_Spend <- ds1_all3_train$RoomService +
+                              ds1_all3_train$FoodCourt +
+                              ds1_all3_train$ShoppingMall +
+                              ds1_all3_train$Spa +
+                              ds1_all3_train$VRDeck
+
+```
+
+
+#### Test
+
+```{r titanic-test-replace-3}
+ds1_all3_test$Age <- ifelse(is.na(ds1_all3_test$Age),
+                           ifelse(!is.na(ds1_all3_test$Age_na_g),
+                                  ds1_all3_test$Age_na_g,
+                                  ds1_all3_test$Age_na),
+                           ds1_all3_test$Age)
+
+ds1_all3_test$RoomService <- ifelse(is.na(ds1_all3_test$RoomService),
+                                  ifelse(!is.na(ds1_all3_test$RoomService_na_g),
+                                         ds1_all3_test$RoomService_na_g,
+                                         ds1_all3_test$RoomService_na),
+                                  ds1_all3_test$RoomService)
+
+ds1_all3_test$FoodCourt <- ifelse(is.na(ds1_all3_test$FoodCourt),
+                                ifelse(!is.na(ds1_all3_test$FoodCourt_na_g),
+                                       ds1_all3_test$FoodCourt_na_g,
+                                       ds1_all3_test$FoodCourt_na),
+                                ds1_all3_test$FoodCourt)
+
+ds1_all3_test$ShoppingMall <- ifelse(is.na(ds1_all3_test$ShoppingMall),
+                                   ifelse(!is.na(ds1_all3_test$ShoppingMall_na_g),
+                                          ds1_all3_test$ShoppingMall_na_g,
+                                          ds1_all3_test$ShoppingMall_na),
+                                   ds1_all3_test$ShoppingMall)
+
+ds1_all3_test$Spa <- ifelse(is.na(ds1_all3_test$Spa),
+                           ifelse(!is.na(ds1_all3_test$Spa_na_g),
+                                  ds1_all3_test$Spa_na_g,
+                                  ds1_all3_test$Spa_na),
+                           ds1_all3_test$Spa)
+
+ds1_all3_test$VRDeck <- ifelse(is.na(ds1_all3_test$VRDeck),
+                             ifelse(!is.na(ds1_all3_test$VRDeck_na_g),
+                                    ds1_all3_test$VRDeck_na_g,
+                                    ds1_all3_test$VRDeck_na),
+                             ds1_all3_test$VRDeck)
+
+ds1_all3_test$Total_Spend <- ds1_all3_test$RoomService +
+                              ds1_all3_test$FoodCourt +
+                              ds1_all3_test$ShoppingMall +
+                              ds1_all3_test$Spa +
+                              ds1_all3_test$VRDeck
+
+```
+
+
+
+
+
+### Summary
+
+#### Train
+
+```{r titanic-train-summary-3}
+train3_summary <- summary(ds1_all3_train)
+
+train3_summary %>%  kbl %>%  kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+train3_summary2 <- ds1_all3_train %>%
+  dplyr::select(CryoSleep_) %>%
+  summarise(
+    n_test = n()
+  )
+```
+
+#### Test
+
+```{r titanic-test-summary-3}
+test3_summary <- summary(ds1_all3_test)
+
+test3_summary %>%  kbl %>%  kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+test3_summary2 <- ds1_all3_test %>%
+  dplyr::select(CryoSleep_) %>%
+  summarise(
+    n_test = n()
+  )
+```
+
+## Base Final
+
+Removemos as variáveis que não vão entrar na modelagem.
+
+### Para a base onde todos os missing foram **removidos**
+
+```{r titanic-train-no-missing-final}
+#Train
+ds1_train1_final = ds1_all2[ds1_all2$table == "train",] %>% dplyr::select(
+  Transported_,
+  #GroupID,
+  #QtyID,
+  QtyID_max,
+  Deck,
+  #Num_cab,
+  Side,
+  CryoSleep_,
+  VIP_,
+  Age,
+  Total_Spend,
+  RoomService,
+  FoodCourt,
+  ShoppingMall,
+  Spa,
+  VRDeck,
+  HomePlanet,
+  Destination
+)
+```
+
+
+```{r titanic-test-no-missing-final}
+#Test
+ds1_test1_final = ds1_all2[ds1_all2$table == "test",] %>% dplyr::select(
+  Transported_,
+  GroupID,
+  QtyID,
+  QtyID_max,
+  Deck,
+  Num_cab,
+  Side,
+  CryoSleep_,
+  VIP_,
+  Age,
+  Total_Spend,
+  RoomService,
+  FoodCourt,
+  ShoppingMall,
+  Spa,
+  VRDeck,
+  HomePlanet,
+  Destination
+)
+```
+
+
+### Para a base onde todos os missing foram **ajustados**
+
+```{r titanic-train-missing-adj-final}
+#Train
+ds1_train2_final = ds1_all3_train %>% dplyr::select(
+  Transported_,
+  GroupID,
+  QtyID,
+  QtyID_max,
+  Deck,
+  Num_cab,
+  Side,
+  CryoSleep_,
+  VIP_,
+  Age,
+  Total_Spend,
+  RoomService,
+  FoodCourt,
+  ShoppingMall,
+  Spa,
+  VRDeck,
+  HomePlanet,
+  Destination
+)
+```
+
+
+```{r titanic-test-missing-adj-final}
+#Test
+ds1_test2_final = ds1_all3_test %>% dplyr::select(
+  Transported_,
+  GroupID,
+  QtyID,
+  QtyID_max,
+  Deck,
+  Num_cab,
+  Side,
+  CryoSleep_,
+  VIP_,
+  Age,
+  Total_Spend,
+  RoomService,
+  FoodCourt,
+  ShoppingMall,
+  Spa,
+  VRDeck,
+  HomePlanet,
+  Destination
+)
+```
+
+Note que para o restante desse trabalho, vamos somente trabalhar com a base onde todos os missing foram **removidos**.\
+
+
+----------------------------------------------------------------
+
+
+## Relação entre as variáveis
+
+Vamos utilizar a base em que todos os valores faltantes foram **removidos**.\
+
+### Tabela de Frequência
+
+O objetivo é ver se as variáveis indepentendes e seus níveis possuem uma boa represetatividade com relação a variável independente.\
+
+Vamos também utilizar o teste Qui-QUadrado de independecia para fazer essa verificação. 
+O teste Qui-Quadrado de independência tem como hipóteses: \
+
+$$
+  H_0: \text{ As variáveis são independentes.} \\ 
+  H_1: \text{ As variáveis não são indepententes.}
+$$
+
+
+```{r titanic-train-ft-1, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + QtyID_max , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + QtyID_max , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **QtyID_max**. Os grupos parecem estar bem distribuídos entre si.\
+
+O teste de independência apresenta um p-valor < 5%, indicando que a hipótese nula deve ser rejeitada, ou seja, as duas variáveis não são independentes e contudo devem apresentar uam relação entre si.\
+
+```{r titanic-train-ft-2, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + Deck , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + Deck , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **Deck**, os grupos parecem estar bem distibuidos com excessão do Deck **T** que só apresenta 2 linhas de observação, uma para Transportado e outra para Não Transportado.\
+
+O teste de independência nos dá um p-valor < 5% mas com a resalva (erro: *Chi-squared approximation may be incorrect*) justamente por ver que um dos níveis da variável Deck possui menos de 5 observações.\
+
+```{r titanic-train-ft-3, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + Side , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + Side , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **Side**, com resultado similar como queremos: grupos bem distribuidos e teste de independência rejeitando a hipótese nula.\
+
+```{r titanic-train-ft-4, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + CryoSleep_ , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + CryoSleep_ , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **CryoSleep**, com resultado similar como queremos: grupos bem distribuidos e teste de independência rejeitando a hipótese nula.\
+
+```{r titanic-train-ft-5, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + VIP_ , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + VIP_ , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **VIP**, com resultado similar como queremos: grupos bem distribuidos e teste de independência rejeitando a hipótese nula.\
+
+```{r titanic-train-ft-6, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + HomePlanet , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + HomePlanet , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **HomePlanet**, com resultado similar como queremos: grupos bem distribuidos e teste de independência rejeitando a hipótese nula.\
+
+```{r titanic-train-ft-7, message=FALSE, warning=FALSE}
+xtabs(~ Transported_ + Destination , data = ds1_train1_final)
+
+summary(xtabs(~ Transported_ + Destination , data = ds1_train1_final))
+```
+
+Acima temos a relação entre **Transported** e **Destination**, com resultado similar como queremos: grupos bem distribuidos e teste de independência rejeitando a hipótese nula.\
+\
+\
+
+Ou seja, até agora todas as variáveis independentes parecem apresentar uma relação com a variável dependente.\
+
+
+### Visual
+
+O objetivo aqui é avaliar visualmente as variáveis independentes entre si e com a variável dependente.\
+Temos em rosa quando a situação da variáveis depentente é 0, no caso, a pessoa não foi transportada. Similarmente, temos em azul quando a pessoa foi transportada.\
+
+```{r titanic-train-plot-pairs-1, message=FALSE, warning=FALSE}
+#todas as variáveis
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final, ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+O gráfico acima ficou muito confuso, mas pode-se notar por exemplo, que a variável dependente tem quase o mesmo número de observações tanto para Verdadeiro (1) quanto para Falso (0). Vamos então usar menos variáveis e fazer a analise gráfica melhor.\
+
+```{r titanic-train-plot-pairs-2, message=FALSE, warning=FALSE}
+#variável dependente (1) e variáveis independentes (2-4)
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final[,c(1:4)], ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+O gráfico acima já nos permite ver o compartamento da variável **QtyID_max**, que nada mais é que o número máximo de pessoas por grupo. Nota-se quando a variável resposta é *verdadeira*, grupos com mais pessoas tendem a ser transpotados, enquanto que se a resposta for *falsa*, tente para grupos menores.\
+Com relação a variável **Deck**, grande parte dos passageiros estavam no Deck *F* e *G* , contudo, passageiros nos Decks *B* e *C* aparentemente foram transportados com sucesso em sua maioria.\
+Já olhando para a variável **Side**, tando *P* (bombordo) quando *S* (estibordo) tinham quase a mesma quantidade de passageitos, mas os que estavam a *estibordo* foram transportados com sucesso um pouco mais do que os a *bombordo*.\
+
+```{r titanic-train-plot-pairs-3, message=FALSE, warning=FALSE}
+#variável dependente (1) e variáveis independentes (5-6)
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final[,c(1,5:6)], ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+Uma variável interessante também é **CryoSleep**, nota-se que a maior parte dos passageiros não estavam dormido durante a vigem, porém, os que estavam em CryoSleep foram transportados com sucesso.\
+
+
+```{r titanic-train-plot-pairs-4, message=FALSE, warning=FALSE}
+#variável dependente (1) e variáveis independentes (7-8)
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final[,c(1,7:8)], ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+Analisando a variável **Age**, podemos ver que a diferença é bem pouca, mas pessoas mais novas em média foram transportadas com sucesso. Contudo, a diferença aqui é bem pequena.\
+Já a vairável **Total Spend** que é a variável que acumula o quanto foi gasto pelos passageiros, nos diz que também com uma leve margem, quam gastou menos teve mais chances de ser transportado com sucesso. Isso claro poderia se relacionar com a variável **CryoSleep**, afinal, se o passageiro estava dormindo durante a viagem, ele não gastou nada ou muito pouco.\
+
+```{r titanic-train-plot-pairs-5, message=FALSE, warning=FALSE}
+#variável dependente (1) e variáveis independentes (9-13)
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final[,c(1,9:13)], ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+Aqui temos as componentes da variável **Total Spend**, não vemos muita coisa aqui.\
+
+```{r titanic-train-plot-pairs-6, message=FALSE, warning=FALSE}
+#variável dependente (1) e variáveis independentes (5 & 8)
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final[,c(1,5,8)], ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5))
+        ) + theme_bw()
+```
+
+Vendo o gráfico da **CryoSleep** junto com **Total Spend**, nota-se a relação citada acima, onde o passageiro que estava em CryoSleep não gastou muito.\
+
+```{r titanic-train-plot-pairs-7, message=FALSE, warning=FALSE}
+#variável dependente (1) e variáveis independentes (14-15)
+#pairs(ds1_train1_final)
+ggpairs(ds1_train1_final[,c(1,14:15)], ggplot2::aes(colour = Transported_, alpha = 0.5),
+        upper = list(continuous = wrap("cor", size=2, binwidth=0.5)),
+        lower=list(combo=wrap("facethist", binwidth=0.8))
+        ) + theme_bw()
+```
+
+Com relação as variáveis **HomePlanet** e **Destination**, notamos que grande parte dos passageiros vinham do planeta Terra, mas os passageiros que vinham do planeta Europa foram mais sucedidos em chegar ao destino com sucesso.\
+Já se tratando no planeta destino, grande parte dos passageiros tinham como destino *TRAPPIST-1e*, mas aqueles cujo destino era o planela *55 Cancri e* tiveram mais sucesso de chegar os seu destino.\
+
+
+
+## Tipo das Variáveis
+
+Checando se todas as variáveis estão com a classificação certa.\
+
+### Train
+
+```{r titanic-train-varclass , message=FALSE, warning=FALSE }
+Tipo <- sapply(ds1_train1_final, class)
+cbind(Tipo) %>%  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+### Test
+
+```{r titanic-est-varclass , message=FALSE, warning=FALSE }
+Tipo_ <- sapply(ds1_test1_final, class)
+cbind(Tipo_) %>%  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+
+----------------------------------------------------------------
+
+
+# Modelagem [Modeling]
+
+A variável resposta é do tipo Binária (Sim/Não, Verdadeiro/Falso) para o caso em que o passageiro foi ou não transportado para uma dimensão alternativa.\
+Desta forma, vamos utilizar o modelo que prediz uma categoria, sendo assim modelos de classificação.\
+E dentre os modelos estudados, vamos usar a <span style="color: blue;">**Regressão Logística Binária**</span>.\
+\
+Como foi visto acima, utilizamos a base **Sample_Submission** para obter os valores da variável resposta da base **Test** que não estava presente no arquivo. Contudo, posso separar a base **Train** para fazer a validação do modelo e depois prever os valores para a base **Test**, ou considerar que os valores se **Sample_Submission** são os valores corretos e que, nesse caso, todos os passageiros listados na base **Test** não foram transportados para o planeta destino (isso porquê a variável *Transported* tem valor FALSE para todas as observações).\
+\
+Por escolha, vou fazer a avaliação do modelo de maneira separada, criar uma segunda base **Test** a partir da base **Train** e depois aplicar os o modelo na base **Test** inicial. Assim, vamos separar a base **Train** em *Train_train* e *Train_test*.\
+
+```{r titanic-base-split-train , message=FALSE, warning=FALSE }
+# Using base R
+set.seed(123)  # for reproducibility
+index_1 <- sample(1:nrow(ds1_train1_final), round(nrow(ds1_train1_final) * 0.7))
+ds1_train1_final_train <- ds1_train1_final[index_1, ]
+ds1_train1_final_test  <- ds1_train1_final[-index_1, ]
+```
+
+
+## Modelo 1
+
+Modelo com todas as variáveis.
+
+```{r titanic-train-model1_a , message=FALSE, warning=FALSE }
+##Model 1
+travel_model1 <- glm(Transported_ ~ . , 
+                     data = ds1_train1_final[,-c(9:13)], family = binomial)
+summary(travel_model1)
+
+exp(travel_model1$coefficients)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model1_b , message=FALSE, warning=FALSE }
+##Model 1 - exponential coeff
+exp(travel_model1$coefficients)
+```
+
+
+O *Modelo 1* com todas as variáveis já  nos dá uma idéia do peso das variáveis independentes no modelo. Por exemplo, olhando para a variável **CryoSleep** tenho que seu coefieciente é 
+<span style="color: blue;">`r round(travel_model1$coefficients["CryoSleep_1"],2)`</span> 
+e convertando esse valor que é o log para a realidade tenho 
+<span style="color: blue;">`r round(exp(travel_model1$coefficients["CryoSleep_1"]),2)`</span> 
+indicando que a chance de o passageiro ser transportado para o planeta destino aumenta em 
+<span style="color: blue;">`r round(exp(travel_model1$coefficients["CryoSleep_1"]),0)`</span>% 
+se esse passageiro estava em CryoSleep.\
+Outra variável interessante em manter no modelo seria a **HomePlanet**, nota-se que *Earth* não está destacada como *Europa* e *Mars*, o que quer dizer que ela faz parte da nosa linha base dentro do intercepto. Uma possível explicação para se ler os coeficientes seria que se o passageiro era nativo do Planeta Europa, suas chances aumentam em 
+<span style="color: blue;">`r round(exp(travel_model1$coefficients["HomePlanetEuropa"]),1)`</span>%. 
+Já se ele era nativo de Mars, suas chances aumentam em 
+<span style="color: blue;">`r round(exp(travel_model1$coefficients["HomePlanetMars"]),1)`</span>%.\
+
+
+## Modelo 2
+
+Modelo com a variável **CryoSleep** somente.
+
+```{r titanic-train-model2_a , message=FALSE, warning=FALSE }
+##Model 2
+travel_model2 <- glm(Transported_ ~ CryoSleep_ , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model2)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model2_b , message=FALSE, warning=FALSE }
+##Model 2 - exponential coeff
+exp(travel_model2$coefficients)
+```
+
+
+## Modelo 3
+
+Modelo com a variável **CryoSleep** e **HomePlanet**.
+
+```{r titanic-train-model3_a , message=FALSE, warning=FALSE }
+##Model 3
+travel_model3 <- glm(Transported_ ~  CryoSleep_ + HomePlanet , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model3)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model3_b , message=FALSE, warning=FALSE }
+exp(travel_model3$coefficients)
+```
+
+## Modelo 4
+
+Modelo com a variável **CryoSleep**, **HomePlant** e **Destination**.
+
+```{r titanic-train-model4_a , message=FALSE, warning=FALSE }
+##Model 4
+travel_model4 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model4)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model4_b , message=FALSE, warning=FALSE }
+exp(travel_model4$coefficients)
+```
+
+## Modelo 5
+
+Modelo com a variável **CryoSleep** e **Destination**.
+
+```{r titanic-train-model5_a , message=FALSE, warning=FALSE }
+##Model 5
+travel_model5 <- glm(Transported_ ~ CryoSleep_ + Destination , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model5)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model5_b , message=FALSE, warning=FALSE }
+exp(travel_model5$coefficients)
+```
+
+## Modelo 6
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination** e **QtyID_max**.
+
+```{r titanic-train-model6_a , message=FALSE, warning=FALSE }
+##Model 6
+travel_model6 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + QtyID_max  , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model6)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model6_b , message=FALSE, warning=FALSE }
+exp(travel_model6$coefficients)
+```
+
+## Modelo 7
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination**, **QtyID_max** e **Age**.
+
+```{r titanic-train-model7_a , message=FALSE, warning=FALSE }
+##Model 7
+travel_model7 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + QtyID_max + Age , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model7)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model7_b , message=FALSE, warning=FALSE }
+exp(travel_model7$coefficients)
+```
+
+## Modelo 8
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination** e **Age**.
+
+```{r titanic-train-model8_a , message=FALSE, warning=FALSE }
+##Model 8
+travel_model8 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + Age , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model8)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model8_b , message=FALSE, warning=FALSE }
+exp(travel_model8$coefficients)
+```
+
+## Modelo 9
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination**, **Age** e **Deck**.
+
+```{r titanic-train-model9_a , message=FALSE, warning=FALSE }
+##Model 9
+travel_model9 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + Age + Deck , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model9)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model9_b , message=FALSE, warning=FALSE }
+exp(travel_model9$coefficients)
+```
+
+## Modelo 10
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination**, **Age**, **Deck**, **Side** e **Total_Spend**.
+
+```{r titanic-train-model10_a , message=FALSE, warning=FALSE }
+##Model 10
+travel_model10 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + Age + Deck + Side + Total_Spend , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model10)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model10_b , message=FALSE, warning=FALSE }
+exp(travel_model10$coefficients)
+```
+
+## Modelo 11
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination**, **Age**, **Deck** e **Total_Spend**.
+
+```{r titanic-train-model11_a , message=FALSE, warning=FALSE }
+##Model 11
+travel_model11 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + Age + Deck + Total_Spend , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model11)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model11_b , message=FALSE, warning=FALSE }
+exp(travel_model11$coefficients)
+```
+
+## Modelo 12
+
+Modelo com a variável **CryoSleep** , **HomePlanet**, **Destination**, **Age** e **Total_Spend**.
+
+```{r titanic-train-model12_a , message=FALSE, warning=FALSE }
+##Model 12
+travel_model12 <- glm(Transported_ ~ CryoSleep_ + HomePlanet + Destination + Age + Total_Spend , 
+                     data = ds1_train1_final, family = binomial)
+summary(travel_model12)
+```
+
+Transformando a exponencial dos coeficientes:
+
+```{r titanic-train-model12_b , message=FALSE, warning=FALSE }
+exp(travel_model12$coefficients)
+```
+
+
+
+## AIC
+
+Após rodarmos os 7 modelos, podemos usar o AIC (*Akaike Information Criterion*) para fazer a escolha do melhor modelo, ou seja, em termos simples, quanto menor o AIC, melhor o modelo pois o erro produzido por esse modelo é o menor dentre todos os outros.
+
+```{r titanic-train-AIC , message=FALSE, warning=FALSE }
+ft1 <- as.data.frame(cbind(c(travel_model1$aic,
+        travel_model2$aic,
+        travel_model3$aic,
+        travel_model4$aic,
+        travel_model5$aic,
+        travel_model6$aic,
+        travel_model7$aic,
+        travel_model8$aic,
+        travel_model9$aic,
+        travel_model10$aic,
+        travel_model11$aic,
+        travel_model12$aic
+        )
+        ))
+colnames(ft1) <- c("AIC")
+ft1$Formula <- c(travel_model1$formula, 
+                 travel_model2$formula, 
+                 travel_model3$formula, 
+                 travel_model4$formula, 
+                 travel_model5$formula, 
+                 travel_model6$formula, 
+                 travel_model7$formula,
+                 travel_model8$formula,
+                 travel_model9$formula,
+                 travel_model10$formula,
+                 travel_model11$formula,
+                 travel_model12$formula
+                    )
+row.names(ft1) <- c("Modelo 1:", 
+                    "Modelo 2:",
+                    "Modelo 3:",
+                    "Modelo 4:",
+                    "Modelo 5:",
+                    "Modelo 6:",
+                    "Modelo 7:",
+                    "Modelo 8:",
+                    "Modelo 9:",
+                    "Modelo 10:",
+                    "Modelo 11:",
+                    "Modelo 12:"
+                    )
+
+ft1 %>%  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+A diferença entre o modelo 5 e o modelo 4 é exatamente a exclusão da variável **HomePlanet**, ao tirarmos do modelo, nota-se que os AIC aumenta, então optou-se por manter essa variável no modelo.\
+O mesmo foi feito para testar a variável **QtyID_max** nos modelos 7 e 8, e dessa vez nota-se que o ganho em manter essa variável no modelo é muito pequeno, pois o AIC não mudou muito do modelo sem a variável para o modelo com a variável, mais um indicativo (além de notar no summary que ela era não significativa) de que essa variável pode ser excluída do modelo. 
+
+
+## Modelo Stepwise
+
+Uma outra alternativa ao invés de ficar rodando modelo por modelo, incluindo variáveis independentes uma a uma é usar o stepwise. Desse modo, o código roda os modelos incluindo e excluido variável e comparando o AIC entre eles.
+
+```{r titanic-train-sepmodel-a , message=FALSE, warning=FALSE }
+travel_model1_step <- travel_model1 %>% 
+  stepAIC(direction = "both", trace = TRUE)
+```
+
+Abaixo temos a ANOVA do stepwise, mostrando o modelo inicial e o final. Aparentemente, somente a variável QtyID_max foi removida do modelo.
+
+```{r titanic-train-sepmodel-b , message=FALSE, warning=FALSE }
+travel_model1_step$anova
+```
+
+```{r titanic-train-sepmodel-c , message=FALSE, warning=FALSE }
+coef(travel_model1_step)
+```
+
+## Cross Validation
+
+Mesmo fazendo o Stepwise e identificando qual seria o melhor modelo de acordo com o AIC, vamos tentar fazer o cross-validation usaond o pacote *carret* utilizando a divisão da base em 10 para Teste e Controle, já que não fizemos essa separação acima.
+
+```{r titanic-crossvalidation-1 , message=FALSE, warning=FALSE}
+# Model 1: all variables
+set.seed(123)
+cv_model1 <- train(
+  Transported_ ~ ., 
+  data = ds1_train1_final[,-c(9:13)], 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 2: Stepwise selected
+set.seed(123)
+cv_model2 <- train(
+  Transported_ ~ Deck + Side + CryoSleep_ + VIP_ + Age + Total_Spend + HomePlanet + Destination , 
+  data = ds1_train1_final[,-c(9:13)], 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 3: stepwise excluding VIP
+set.seed(123)
+cv_model3 <- train(
+  Transported_ ~ Deck + Side + CryoSleep_ + Age + Total_Spend + HomePlanet + Destination  , 
+  data = ds1_train1_final[,-c(9:13)], 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 4: stepwise excluding VIP, Side
+set.seed(123)
+cv_model4 <- train(
+  Transported_ ~ Deck + CryoSleep_ + Age + Total_Spend + HomePlanet + Destination  , 
+  data = ds1_train1_final[,-c(9:13)], 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 5: stepwise excluding VIP, Side, Deck
+set.seed(123)
+cv_model5 <- train(
+  Transported_ ~ CryoSleep_ + Age + Total_Spend + HomePlanet + Destination  , 
+  data = ds1_train1_final[,-c(9:13)], 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Model 6: stepwise excluding VIP, Side, Deck, Total_Spend
+set.seed(123)
+cv_model6 <- train(
+  Transported_ ~  CryoSleep_ + Age + HomePlanet + Destination , 
+  data = ds1_train1_final[,-c(9:13)], 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+```
+
+Extraindo a Acurácia de cada um dos modelos rodados:
+
+```{r titanic-crossvalidation-2 , message=FALSE, warning=FALSE}
+# extract out of sample performance measures
+as.data.frame(
+  summary(
+  resamples(
+    list(
+      modelo_1 = cv_model1, 
+      modelo_stepwise = cv_model2, 
+      modelo_10 = cv_model3,
+      modelo_11 = cv_model4,
+      modelo_12 = cv_model5,
+      modelo_8 = cv_model6
+    )
+  )
+)$statistics$Accuracy
+) %>% arrange(desc(Mean)) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+```
+
+Baseado na tabela acima temos que o Modelo Stepwise (que exclui a variável QtyID_max) é o modelo com maior acurácia 
+`r round(cv_model2$results$Accuracy,2)`. 
+O Modelo 10 (StepWise excluindo VIP) vem logo em seguida 
+`r round(cv_model3$results$Accuracy,2)`,
+praticamente mostrando que VIP não faz tanta diferença no modelo, mesmo essa variável se mostrando significante. Em terceiro lugar temos o Modelo 1 (modelo com todas as variáveis) 
+`r round(cv_model1$results$Accuracy,2)` 
+que é o modelo com todas as variáveis.\
+\
+Utilizando o princípio da parcimonia, escolhemos o **Modelo 10** pois tem menos variáveis e nos dá um resultanto bem similiar tanto ao modelo com todas as variáveis e ao Stepwise.\
+
+## Intervalo de Confiança
+
+Abaixo calculamos o intervalo de confiança para o coeficiente de cada uma das variáveis independentes do Modelo 10.
+
+```{r titanic-confinterval-1 , message=FALSE, warning=FALSE}
+confint(travel_model10)
+```
+
+
+
+
+# Avaliação [Evaluation]
+
+Baseado no AIC, escolhemos o Modelo 10, agora vamos avaliar mais a fundo se esse é de fato o melhor modelo.\
+
+## Confusion Matrix
+
+Para avaliar se o modelo é de fato bom, vamos fazer a Matriz de Confusão tanto para esse modelo quanto para o modelo StepWise.\
+\
+Vale lembrar que:\
+**Sensitividade**: mede o quão apto o modelo é para determinar eventos verdadeiros. Ou seja, para esse estudo, a sensibilidade quantifica quantos passageiros classificados como transportados com sucesso conseguiram chegar de fato ao planeta destino.\
+\
+**Especificidade**: mede o quão exato é a classificação verdadeira, nesse caso, quantos passageiros form preditos tendo ido para o planeta de destino com sucesso, quando de fato, o transporte para o planeta destino falhou.\
+
+```{r titanic-confusion-matrix-1 , message=FALSE, warning=FALSE}
+# Model 10 predict 
+model10_pred <- predict(cv_model3, ds1_train1_final[,-c(9:13)])
+
+# create confusion matrix
+model10_pred_cm <- confusionMatrix(
+#  data = model10_pred, 
+#  reference = ds1_train1_final$Transported_
+  data = relevel(model10_pred, ref = "1"), 
+  reference = relevel(ds1_train1_final$Transported_, ref = "1")
+)
+
+model10_pred_cm
+```
+
+Acima temos a Matrix de Confusão para o Modelo 10:\
+`r paste(cv_model3$call$form) `\
+Note que *No Information Rate* é 
+`r round(model10_pred_cm$byClass[c("Prevalence")]*100 , 1) `
+%, representando que a condição de ter sido transportado com sucesso para o planeta destino versus falha é meio-a-meio no nosso dataset de Treino. Ou seja, se a predição dor simplesmente falha para todos os passageiros, nós teriamos uma acurácia de 
+`r round(model10_pred_cm$byClass[c("Prevalence")]*100 , 1) `
+%. Esse modelo nos dá uma acurácia de 
+`r round(model10_pred_cm$overall[c("Accuracy")]*100 , 1) `
+%.\
+Analisando a sentividade, temos que o modelo prediz que o passageiro foi transportado com sucesso para o planeta de destino 
+`r round(model10_pred_cm$byClass[c("Sensitivity")]*100 , 1) `
+% das vezes.\
+Olhando para a especificidade, temos 
+`r round(model10_pred_cm$byClass[c("Specificity")]*100 , 1) `
+%, indicando que 
+`r 100 - round(model10_pred_cm$byClass[c("Specificity")]*100 , 1) `
+% dos passageiros foram incorretamente preditos como tendo sido transportados com sucesso para o planeta destino.\
+
+
+
+```{r titanic-confusion-matrix-2 , message=FALSE, warning=FALSE}
+# Model 10 predict 
+model_step_pred <- predict(cv_model2, ds1_train1_final[,-c(9:13)])
+
+# create confusion matrix
+modelstep_pred_cm <- confusionMatrix(
+#  data = model_step_pred, 
+#  reference = ds1_train1_final$Transported_
+  data = relevel(model_step_pred, ref = "1"), 
+  reference = relevel(ds1_train1_final$Transported_, ref = "1")
+)
+
+modelstep_pred_cm
+```
+
+Acima temos a Matrix de Confusão para o Modelo Stepwise\
+`r paste(cv_model2$call$form)`\
+Note que *No Information Rate* é 
+`r round(modelstep_pred_cm$byClass[c("Prevalence")]*100 , 1)`
+%, representando que a condição de ter sido transportado com sucesso para o planeta destino versus falha é meio-a-meio no nosso dataset de Treino. Ou seja, se a predição dor simplesmente falha para todos os passageiros, nós teriamos uma acurácia de 
+`r round(modelstep_pred_cm$byClass[c("Prevalence")]*100 , 1)`
+%. Esse modelo nos dá uma acurácia de 
+`r round(modelstep_pred_cm$overall[c("Accuracy")]*100 , 1)`
+%.\
+Analisando a sentividade, temos que o modelo prediz que o passageiro foi transportado com sucesso para o planeta de destino 
+`r round(modelstep_pred_cm$byClass[c("Sensitivity")]*100 , 1)`
+% das vezes.\
+Olhando para a especificidade, temos 
+`r round(modelstep_pred_cm$byClass[c("Specificity")]*100 , 1)`
+%, indicando que 
+`r 100 - round(modelstep_pred_cm$byClass[c("Specificity")]*100 , 1)`
+% dos passageiros foram incorretamente preditos como tendo sido transportados com sucesso para o planeta destino.\
+
+## ROC e AUC
+
+Vamos agora usar a curva ROC (Receiver Operating Characteristic) que mostra a performance de um modelo de classificação para se tentar definir um ponto de corte nas probabilidades preditas.\
+Podemos olhar também para o AUC (Area Under the ROC Curve) que nos fornece uma medida de performance para todos os pontos de corte da classificação. Uma interpretação para o AUC é a probabilidade de que o modelo tenda a predizer um exemplo aleatório como positivo do que negativo.\
+
+```{r titanic-train-pred-1 , message=FALSE, warning=FALSE}
+# Compute predicted probabilities
+m10_prob <- predict(cv_model3, ds1_train1_final[,-c(9:13)], type = "prob")$"1"
+mstep_prob <- predict(cv_model2, ds1_train1_final[,-c(9:13)], type = "prob")$"1"
+
+ds1_train1_final$model10_pred <- m10_prob
+ds1_train1_final$modelstep_pred <- mstep_prob
+```
+
+Acima usamos os dois modelos para para criar variáveis preditas, tanto para o Modelo 10 quanto para o Modelo StepWise.\
+
+
+### Modelo 10
+
+Abaixo plotamos o gráfico da variável resposta original versus sua predição.\
+
+```{r titanic-roc-2a , message=FALSE, warning=FALSE}
+#Transformando a variável resposta como numerica 0 e 1
+ds1_train1_final$Transported_f <- as.numeric(ds1_train1_final$Transported_) - 1
+
+ds1_train1_final_order <- ds1_train1_final[order(ds1_train1_final$model10_pred),] 
+ds1_train1_final_order$ID <- c(1:nrow(ds1_train1_final))
+
+ggplot(data=ds1_train1_final_order, aes(x=ID)) + 
+  geom_point(aes(y = Transported_f, color = "Actual"), alpha = 0.1) +
+  geom_point(aes(y = model10_pred, color = "Predicted"), alpha = 0.1) +
+  labs(color='Transported') +
+  ggtitle("Gráfico Variável Transported: Modelo 10") +
+  ylab("Chance") +
+  xlab("ID") 
+```
+
+```{r titanic-roc-2c , message=FALSE, warning=FALSE}
+#define object to plot and calculate AUC
+rocobj_m10 <- roc(ds1_train1_final$Transported_, m10_prob)
+auc_10 <- round(auc(ds1_train1_final$Transported_, m10_prob),4)
+
+#plot(rocobj_m10, print.thres=TRUE)
+rocobj_m10_optimal <- coords(rocobj_m10, "best", ret = "all", transpose = FALSE)
+
+rocobj_m10_optimal %>%  
+  kbl %>% kable_paper("hover", full_width = F)
+
+#create ROC plot
+ggroc(rocobj_m10, colour = 'steelblue', size = 2 , alpha = 0.5, legacy.axes = FALSE) +
+  geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), color="black", linetype="dashed") +
+  geom_point( aes(x = rocobj_m10_optimal$specificity, 
+                  y = rocobj_m10_optimal$sensitivity), 
+              color="red", size = 4, pch = 18) +
+  geom_segment(aes(x = 1, xend = rocobj_m10_optimal$specificity, 
+                   y=rocobj_m10_optimal$sensitivity, yend=rocobj_m10_optimal$sensitivity),
+               color="indianred", linetype="dotted")+ 
+  geom_segment(aes(x=rocobj_m10_optimal$specificity, xend=rocobj_m10_optimal$specificity, 
+                   y = 0, yend = rocobj_m10_optimal$sensitivity),
+               color="indianred", linetype="dotted") +
+  geom_text(aes(x = rocobj_m10_optimal$specificity, 
+                y = rocobj_m10_optimal$sensitivity), 
+            label = round(rocobj_m10_optimal$threshold,2), 
+            nudge_x = 0, nudge_y = 0.04) +
+  geom_text(aes(x = 1, 
+                y = rocobj_m10_optimal$sensitivity), 
+            color = "indianred", size = 4,
+            label = round(rocobj_m10_optimal$sensitivity,2), 
+            nudge_x = 0, nudge_y = 0.01) +
+  geom_text(aes(x = rocobj_m10_optimal$specificity, 
+                y = 0), 
+            color = "indianred", size = 4,
+            label = round(rocobj_m10_optimal$specificity,2), 
+            nudge_x = 0.01, nudge_y = -0.01) +
+  ggtitle(paste0('ROC Curve - Modelo 10 ', '(AUC = ', auc_10, ')'))
+
+
+```
+
+
+
+### Modelo StepWise
+
+Abaixo plotamos o gráfico da variável resposta original versus sua predição.\
+
+```{r titanic-roc-2b , message=FALSE, warning=FALSE}
+ds1_train1_final_order2 <- ds1_train1_final[order(ds1_train1_final$modelstep_pred),] 
+ds1_train1_final_order2$ID <- c(1:nrow(ds1_train1_final))
+
+ggplot(data=ds1_train1_final_order2, aes(x=ID)) + 
+  geom_point(aes(y = Transported_f, color = "Actual"), alpha = 0.1) +
+  geom_point(aes(y = modelstep_pred, color = "Predicted"), alpha = 0.1) +
+  labs(color='Transported') +
+  ggtitle("Gráfico Variável Transported: Modelo StepWise") +
+  ylab("Chance") +
+  xlab("ID") 
+
+```
+
+```{r titanic-roc-2d , message=FALSE, warning=FALSE}
+#define object to plot and calculate AUC
+rocobj_mstep <- roc(ds1_train1_final$Transported_, m10_prob)
+auc_step <- round(auc(ds1_train1_final$Transported_, m10_prob),4)
+
+#plot(rocobj_mstep, print.thres=TRUE)
+rocobj_mstep_optimal <- coords(rocobj_mstep, "best", ret = "all", transpose = FALSE)
+
+rocobj_mstep_optimal %>%  
+  kbl %>% kable_paper("hover", full_width = F)
+
+#create ROC plot
+ggroc(rocobj_mstep, colour = 'steelblue', size = 2 , alpha = 0.5, legacy.axes = FALSE) +
+  geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), color="black", linetype="dashed") +
+  geom_point( aes(x = rocobj_mstep_optimal$specificity, 
+                  y = rocobj_mstep_optimal$sensitivity), 
+              color="red", size = 4, pch = 18) +
+  geom_segment(aes(x = 1, xend = rocobj_mstep_optimal$specificity, 
+                   y=rocobj_mstep_optimal$sensitivity, yend=rocobj_mstep_optimal$sensitivity),
+               color="indianred", linetype="dotted")+ 
+  geom_segment(aes(x=rocobj_mstep_optimal$specificity, xend=rocobj_mstep_optimal$specificity, 
+                   y = 0, yend = rocobj_mstep_optimal$sensitivity),
+               color="indianred", linetype="dotted") +
+  geom_text(aes(x = rocobj_mstep_optimal$specificity, 
+                y = rocobj_mstep_optimal$sensitivity), 
+            label = round(rocobj_mstep_optimal$threshold,2), 
+            nudge_x = 0, nudge_y = 0.04) +
+  geom_text(aes(x = 1, 
+                y = rocobj_mstep_optimal$sensitivity), 
+            color = "indianred", size = 4,
+            label = round(rocobj_mstep_optimal$sensitivity,2), 
+            nudge_x = 0, nudge_y = 0.01) +
+  geom_text(aes(x = rocobj_mstep_optimal$specificity, 
+                y = 0), 
+            color = "indianred", size = 4,
+            label = round(rocobj_mstep_optimal$specificity,2), 
+            nudge_x = 0.01, nudge_y = -0.01) +
+  ggtitle(paste0('ROC Curve - Modelo StepWise ', '(AUC = ', auc_step, ')'))
+
+
+```
+
+
+```{r titanic-roc-1 , message=FALSE, warning=FALSE, eval=FALSE}
+#removido do trabalho
+# Compute AUC metrics for cv_model3 and cv_model2
+perf1 <- prediction(m10_prob, ds1_train1_final$Transported_) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+perf2 <- prediction(mstep_prob, ds1_train1_final$Transported_) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+
+# Plot ROC curves for cv_model3 and cv_model2
+plot(perf1, col = "red", lty = 2, lwd = 0.5, type="l", pch=1, 
+     print.cutoffs.at = seq(from = 1, to = 0, by = -0.1)
+     )
+#plot(perf2, add = TRUE, col = "blue", lty = 2, lwd = 0.5, type="l", pch=1)
+legend(0.8, 0.2, legend = c("Modelo 10", "Modelo StepWise"),
+       col = c("red", "blue"), lty = c(2,2), lwd = 1, cex = 0.6)
+
+```
+
+A diferença entre os dois gráficos aparenta ser bem mínima, fazendo o princípio da parcimonia pesar ainda mais na decisão de usar o modelo com menos variáveis.\
+Em ambos os modelos encontramos o ponto de corte (ótimo) em que teriamos a melhor sensibilidade e especificidade. Colocando isso em termos do que deve pesar mais, como com a colisão os passageiros podem ter ficado perdido no espaço, prefiro errar mais dizendo que o passageiro **não** foi transportado com sucesso sendo que ele foi enviado para o planeta destino corretamente. Ou seja, estou esperando que o ponto de corte seja maior do que 50%.\
+Como foi visto acima, o ponto ótimo é 
+`r round(rocobj_m10_optimal$threshold, 2)`
+, indicando que os valores preditos acima de 
+`r round(rocobj_m10_optimal$threshold*100, 0)`
+% serão classificados como Verdadeiro (foram transportados com sucesso), e valores abaixo serão classificados como Falso (não foram transportados com sucesso).\
+
+
+```{r titanic-train-pred-2 , message=FALSE, warning=FALSE}
+ds1_train1_final$model10_pred.f <- ifelse(ds1_train1_final$model10_pred >= rocobj_m10_optimal$threshold, 1, 0) 
+ds1_train1_final$modelstep_pred.f <- ifelse(ds1_train1_final$modelstep_pred >= rocobj_mstep_optimal$threshold, 1, 0) 
+```
+
+Concluimos então a avaliação do modelo. O melhor modelo é o Modelo 10 pois pela parcimonia, a variável **VIP** estão ou não no modelo não faz diferença quando comparamos o AIC. Descobrimos o ponto ótimo de corte que dos dá uma acurácia de 
+`r round(rocobj_m10_optimal$accuracy*100, 0)`
+% utilizando o ponto de corte de 
+`r round(rocobj_m10_optimal$threshold, 2)`
+.\
+
+
+# Aplicação [Deployment]
+
+Vamos então para a parte mais esperada, fazer a predição da base **Test**.\
+Utilizo o Modelo 10 para fazer a predição:\
+
+```{r titanic-test-pred-1 , message=FALSE, warning=FALSE}
+# Compute predicted probabilities
+m10_prob <- predict(cv_model3, ds1_test1_final, type = "prob")$"1"
+#mstep_prob <- predict(cv_model2, ds1_test1_final, type = "prob")$"1"
+
+ds1_test1_final$model10_pred <- m10_prob
+#ds1_test1_final$modelstep_pred <- mstep_prob
+```
+
+Faço o gráfico mostrando a variável predita com a variável resposta que neste caso veio do arquivo sample_submission, mostrando que todos os valores eram falsos.\
+
+```{r titanic-test-pred-2 , message=FALSE, warning=FALSE}
+#Transformando a variável resposta como numerica 0 e 1
+ds1_test1_final$Transported_f <- as.numeric(ds1_test1_final$Transported_) - 1
+
+ds1_test1_final_order <- ds1_test1_final[order(ds1_test1_final$model10_pred),] 
+ds1_test1_final_order$ID <- c(1:nrow(ds1_test1_final))
+
+ggplot(data=ds1_test1_final_order, aes(x=ID)) + 
+  geom_point(aes(y = Transported_f, color = "Actual"), alpha = 0.1) +
+  geom_point(aes(y = model10_pred, color = "Predicted"), alpha = 0.1) +
+  labs(color='Transported') +
+  ggtitle("Gráfico Variável Transported: Modelo 10 (base Test)") +
+  ylab("Chance") +
+  xlab("ID") 
+```
+
+Vamos usar o ponto de ótimo de corte para criar a variável predita final, já que é nesse formato que temos que eviar o arquivo.\
+
+```{r titanic-test-pred-3 , message=FALSE, warning=FALSE}
+ds1_test1_final$model10_pred.f <- ifelse(ds1_test1_final$model10_pred >= 
+                                           rocobj_m10_optimal$threshold, 1, 0) 
+ds1_test1_final$model10_pred.f2 <- ifelse(ds1_test1_final$model10_pred >= 
+                                           rocobj_m10_optimal$threshold, "TRUE", "FALSE") 
+
+```
+
+
+```{r titanic-test-pred-4 , message=FALSE, warning=FALSE}
+ds1_test1_final_submission <- cbind(paste0(ds1_test1_final$GroupID,
+                                           "_", 
+                                           ds1_test1_final$QtyID),
+                                    ds1_test1_final$model10_pred.f2)
+
+colnames(ds1_test1_final_submission) <- c("PassengerID", "Transported_Prediction")
+
+head(ds1_test1_final_submission) %>%  
+  kbl %>% kable_paper(c("striped", "hover"), full_width = F, fixed_thead = T)
+
+```
+
+```{r titanic-test-pred-5 , message=FALSE, warning=FALSE}
+ds1_test1_final_order1 <- ds1_test1_final[order(ds1_test1_final$model10_pred),] 
+ds1_test1_final_order1$ID <- c(1:nrow(ds1_test1_final))
+
+ggplot(data=ds1_test1_final_order1, aes(x=ID)) + 
+  geom_point(aes(y = Transported_f, color = "Actual"), alpha = 0.1) +
+  geom_point(aes(y = model10_pred.f, color = "Predicted"), alpha = 0.1) +
+  labs(color='Transported') +
+  ggtitle("Gráfico Variável Transported: Modelo 10 (base Test) final") +
+  ylab("Chance") +
+  xlab("ID") 
+```
+
+
+## Exportando o arquivo final
+
+```{r titanic-export , message=FALSE, warning=FALSE }
+write.csv(ds1_test1_final_submission,".\\final_submission_titanic.csv", row.names = FALSE)
+
+```
+
+
+
