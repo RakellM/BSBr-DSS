@@ -1,0 +1,699 @@
+---
+title: "Inferência Estatística" 
+subtitle: "Projeto Final"
+date: "2022-04-20"
+author: 
+  - "Francisco Moura Fé"
+  - "Marcos Alves"
+  - "Marcus Dias"
+  - "Raquel Marques"
+
+output: 
+  rmdformats::robobook:
+    use_bookdown: TRUE
+    toc_depth: 5
+    toc_float: TRUE
+    code_folding: hide
+---
+
+# Preparação Inicial (A)
+
+Definir diretório e pacotes necessários.
+
+```{r setup, include=FALSE, eval=FALSE}
+#-----------ITEM A
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+```
+
+```{r include=FALSE, message=FALSE, warning=FALSE}
+#-----------ITEM A
+## Carregar Pacotes
+
+load.pks = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "Hmisc",
+  "DescTools",
+  "nortest",
+  "esquisse",
+  "gridExtra",
+  "kableExtra"
+)
+
+# lapply(load.pks, install.packages, character.only = TRUE) #instalar
+lapply(load.pks, require, character.only = TRUE)  #carregar
+```
+
+## Importação do banco do ENADE/INEP (A)
+
+```{r message=FALSE, warning=FALSE}
+#-----------ITEM A
+# DataSet directory
+path <- c("C:\\0. R\\MBA\\DS&S\\M2 - Estatístics Descritiva e Construção de Dashboards\\MBA_ProjetoFinal_original")
+
+setwd(path)
+
+getwd()
+
+#dataset <- read_csv2("MICRODADOS_ENADE_2017.txt" )
+dataset <- read.delim("MICRODADOS_ENADE_2017.txt" , header = TRUE, sep = ";", dec = ",")
+
+```
+
+## Seleção das Variáveis Desejadas (A)
+
+```{r }
+#-----------ITEM A
+ds.filtered <- dataset %>% dplyr::select(
+  NT_GER,
+  NT_OBJ_FG,
+  CO_GRUPO,
+  CO_REGIAO_CURSO,
+  QE_I02,
+  CO_TURNO_GRADUACAO
+)
+```
+
+```{r echo=FALSE}
+#-----------ITEM A
+Variável <- c('NT_GER', 'NT_OBJ_FG', 'CO_GRUPO' ,'CO_REGIAO_CURSO' ,'QE_I02' ,'CO_TURNO_GRADUACAO')
+Tipo <- c('Quantitativa Continua', 'Quantitativa Continua', 
+          'Qualitativa Nominal', 'Qualitativa Nominal', 
+          'Qualitativa Nominal', 'Qualitativa Nominal')
+Descrição <- c('Nota bruta da prova. (valor de 0 a 100)', 
+               'Nota bruta na parte objetiva da formação geral. (valor de 0 a 100)', 
+               'Código da área de enquadramento do curso no Enade' , 
+               'Código da região de funcionamento do curso', 
+               'Qual é a sua cor ou raça?', 'Código do turno de graduação')
+
+tabela1 <- data.frame(Variável, Tipo, Descrição)
+
+tabela1 %>% kbl() %>% kable_paper("hover", full_width = F)
+```
+
+## Transformação das Variáveis (A)
+
+Vamos decodificar as varáveis para um melhor entendimento na fase descritiva.
+
+```{r}
+#-----------ITEM A
+#Cursos
+ds.filtered <- ds.filtered %>% mutate(
+  Curso = case_when(
+    CO_GRUPO == 21 ~ 'Arquitetura e Urbanismo' , 
+    CO_GRUPO == 72 ~ 'Tecnologia em Análise e Desenvolvimento de Sistemas' , 
+    CO_GRUPO == 76 ~ 'Tecnologia em Gestão da Produção Industrial' , 
+    CO_GRUPO == 79 ~ 'Tecnologia em Redes de Computadores' , 
+    CO_GRUPO == 701 ~ 'Matemática (Bacharelado)' , 
+    CO_GRUPO == 702 ~ 'Matemática (Licenciatura)' , 
+    CO_GRUPO == 903 ~ 'Letras-Português (Bacharelado)' , 
+    CO_GRUPO == 904 ~ 'Letras-Português (Licenciatura)' , 
+    CO_GRUPO == 905 ~ 'Letras-Português e Inglês (Licenciatura)' , 
+    CO_GRUPO == 906 ~ 'Letras-Português e Espanhol (Licenciatura)' , 
+    CO_GRUPO == 1401 ~ 'Física (Bacharelado)' , 
+    CO_GRUPO == 1402 ~ 'Física (Licenciatura)' , 
+    CO_GRUPO == 1501 ~ 'Química (Bacharelado)' , 
+    CO_GRUPO == 1502 ~ 'Química (Licenciatura)' , 
+    CO_GRUPO == 1601 ~ 'Ciências Biológicas (Bacharelado)' , 
+    CO_GRUPO == 1602 ~ 'Ciências Biológicas (Licenciatura)' , 
+    CO_GRUPO == 2001 ~ 'Pedagogia (Licenciatura)' , 
+    CO_GRUPO == 2401 ~ 'História (Bacharelado)' , 
+    CO_GRUPO == 2402 ~ 'História (Licenciatura)' , 
+    CO_GRUPO == 2501 ~ 'Artes Visuais (Licenciatura)' , 
+    CO_GRUPO == 3001 ~ 'Geografia (Bacharelado)' , 
+    CO_GRUPO == 3002 ~ 'Geografia (Licenciatura)' , 
+    CO_GRUPO == 3201 ~ 'Filosofia (Bacharelado)' , 
+    CO_GRUPO == 3202 ~ 'Filosofia (Licenciatura)' , 
+    CO_GRUPO == 3502 ~ 'Educação Física (Licenciatura)' , 
+    CO_GRUPO == 4003 ~ 'Engenharia Da Computação' , 
+    CO_GRUPO == 4004 ~ 'Ciência Da Computação (Bacharelado)' , 
+    CO_GRUPO == 4005 ~ 'Ciência Da Computação (Licenciatura)' , 
+    CO_GRUPO == 4006 ~ 'Sistemas De Informação' , 
+    CO_GRUPO == 4301 ~ 'Música (Licenciatura)' , 
+    CO_GRUPO == 5401 ~ 'Ciências Sociais (Bacharelado)' , 
+    CO_GRUPO == 5402 ~ 'Ciências Sociais (Licenciatura)' , 
+    CO_GRUPO == 5710 ~ 'Engenharia Civil' , 
+    CO_GRUPO == 5806 ~ 'Engenharia Elétrica' , 
+    CO_GRUPO == 5814 ~ 'Engenharia de Controle e Automação' , 
+    CO_GRUPO == 5902 ~ 'Engenharia Mecânica' , 
+    CO_GRUPO == 6002 ~ 'Engenharia de Alimentos' , 
+    CO_GRUPO == 6008 ~ 'Engenharia Química' , 
+    CO_GRUPO == 6208 ~ 'Engenharia de Produção' , 
+    CO_GRUPO == 6306 ~ 'Engenharia' , 
+    CO_GRUPO == 6307 ~ 'Engenharia Ambiental' , 
+    CO_GRUPO == 6405 ~ 'Engenharia Florestal' , 
+    CO_GRUPO == 6407 ~ 'Letras - Inglês' , 
+    CO_GRUPO == 6409 ~ 'Tecnologia em Gestão da Tecnologia da Informação' , 
+    TRUE ~ "Outro"
+  )
+)
+ds.filtered$Curso <- as.factor(ds.filtered$Curso)
+#Nota
+ds.filtered = ds.filtered %>% mutate(
+  Nota_Obj = NT_OBJ_FG,
+  Nota_Geral = NT_GER
+)
+#Regiao
+ds.filtered = ds.filtered %>% mutate(
+  Regiao = case_when(
+    CO_REGIAO_CURSO == 1 ~ "Norte",
+    CO_REGIAO_CURSO == 2 ~ "Nordeste",
+    CO_REGIAO_CURSO == 3 ~ "Sudeste",
+    CO_REGIAO_CURSO == 4 ~ "Sul",
+    CO_REGIAO_CURSO == 5 ~ "Centro-Oeste"
+  )
+)
+ds.filtered$Regiao <- as.factor(ds.filtered$Regiao)
+#Raca
+ds.filtered = ds.filtered %>% mutate(
+  Raca = case_when(
+    QE_I02 == "A" ~ "Branca",
+    QE_I02 == "B" ~ "Preta",
+    QE_I02 == "C" ~ "Amarela",
+    QE_I02 == "D" ~ "Parda",
+    QE_I02 == "E" ~ "Indígena",
+    QE_I02 == "F" ~ "Não quero declarar"
+  )
+)
+ds.filtered$Raca <- as.factor(ds.filtered$Raca)
+#Turno
+ds.filtered = ds.filtered %>% mutate(
+  Turno = case_when(
+    CO_TURNO_GRADUACAO == 1 ~ "Matutino",
+    CO_TURNO_GRADUACAO == 2 ~ "Vespertino",
+    CO_TURNO_GRADUACAO == 3 ~ "Integral",
+    CO_TURNO_GRADUACAO == 4 ~ "Noturno"
+  )
+)
+ds.filtered$Turno <- as.factor(ds.filtered$Turno)
+# Limpar Dataset
+cps = c(  "NT_GER",
+          "NT_OBJ_FG",
+          #"CO_GRUPO",
+          "CO_REGIAO_CURSO",
+          "QE_I02",
+          "CO_TURNO_GRADUACAO")
+
+ds.all <- subset(ds.filtered, select = -c(NT_GER,
+                                          NT_OBJ_FG,
+                                          #CO_GRUPO,
+                                          CO_REGIAO_CURSO,
+                                          QE_I02,
+                                          CO_TURNO_GRADUACAO) )
+
+```
+
+# Análise Descritiva (B)
+
+```{r}
+#-----------ITEM B
+s <<- summary(ds.all)
+d <<- describe(ds.all)
+
+#unique(d$Nota_Geral) %>% kbl %>% kable_paper(full_width = F)
+
+```
+
+## Banco de Dados Inicial (B)
+
+```{r}
+#-----------ITEM B
+tabela_1 <- ds.all %>%
+  select(Nota_Geral) %>%
+  summarise(
+    quantidade = n(),
+    missing = quantidade - sum(!is.na(Nota_Geral)) ,
+    media = round( mean( Nota_Geral , na.rm=TRUE) , 1),
+    mediana = round( median( Nota_Geral, na.rm=TRUE) , 1),
+    moda = round( Mode(Nota_Geral, na.rm=TRUE) , 1),
+    desvio_padrao = round( sd(Nota_Geral, na.rm=TRUE) , 1),
+#    variancia = round( sd(Nota_Geral, na.rm=TRUE)^2 , 1),
+    cv = round( sd(Nota_Geral, na.rm=TRUE) / media * 100 , 1),
+    assimetria = round( skewness(Nota_Geral, na.rm=TRUE) , 1),
+    curtose = round( kurtosis(Nota_Geral, na.rm=TRUE), 1)
+  )
+
+tabela_1 %>%  kbl %>% kable_paper("hover", full_width = F)
+
+```
+
+A tabela acima mostra o total geral da base para todos os cursos. Podemos ver que a base tem `r tabela_1$missing `.
+
+```{r , echo=FALSE}
+#-----------ITEM B
+#confirmando o achado acima
+summary_na = ds.all %>%
+  select(everything()) %>%
+  summarise_all(list(~ sum(is.na(.))))
+
+summary_na %>%  kbl %>% kable_paper("hover", full_width = F)
+
+```
+
+## Remover Missings (B)
+
+Desta maneira vamos agora remover os missings presentes na variável **Nota Geral**. \
+Decido por remover os missings somente dessa variáveis pois não iremos trabalhar 
+com as outras variáveis selecionadas, caso fossemos trabalhar com elas, haveria 
+uma nova avaliação e remoção das mesmas.
+
+```{r }
+#-----------ITEM B
+#removendo missings
+ds.all_adj = ds.all %>%
+  filter_at(vars(Nota_Geral), all_vars(!is.na(.)))
+
+#Verificando se todos os NA's foram de fato removidos
+summary_final.nas=ds.all_adj %>%
+  select(everything()) %>%  
+  summarise_all(list(~sum(is.na(.))))
+
+summary_final.nas %>% kbl %>% kable_paper("hover", full_width = F)
+
+#Quatidade De Linhas Do Banco Original
+n_dsall <- dim(ds.all)[1]
+#Quatidade De Linhas Do Banco sem os NAS
+n_dsnonas <- dim(ds.all_adj)[1]
+
+#observaçoes removidas
+n_diff <- dim(ds.all)[1] - dim(ds.all_adj)[1]
+n_diff_pct <- ( dim(ds.all)[1] - dim(ds.all_adj)[1] ) / dim(ds.all)[1] 
+
+```
+
+Nota-se que os `r n_diff ` missings da variável **Nota Geral** foram removidos da base, 
+o que representa `r round(n_diff_pct * 100, 1) `% da base.
+
+## Banco de Dados sem NAs (C)
+
+### Estatísticas Descritivas (C)
+
+```{r}
+#-----------ITEM C
+#Summary 2 geral
+tabela_2 <- ds.all_adj %>%
+  select(Nota_Geral) %>%
+  summarise(
+    quantidade = n(),
+    missing = quantidade - sum(!is.na(Nota_Geral)) ,
+    media = round( mean( Nota_Geral , na.rm=TRUE) , 1),
+    mediana = round( median( Nota_Geral, na.rm=TRUE) , 1),
+    moda = round( Mode(Nota_Geral, na.rm=TRUE) , 1),
+    desvio_padrao = round( sd(Nota_Geral, na.rm=TRUE) , 1),
+#    variancia = round( sd(Nota_Geral, na.rm=TRUE)^2 , 1),
+    cv = round( sd(Nota_Geral, na.rm=TRUE) / media * 100 , 1),
+    assimetria = round( skewness(Nota_Geral, na.rm=TRUE) , 1),
+    curtose = round( kurtosis(Nota_Geral, na.rm=TRUE), 1)
+  )
+
+```
+
+Recalculamos a as estatísticas descritivas para todos os cursos e, posteriormente, para cada curso individualmente.  
+
+```{r}
+#-----------ITEM C
+tabela_2 %>%  kbl %>% kable_paper("hover", full_width = F)
+```
+
+### Gráfico de Densidade e Histograma (C)
+
+```{r}
+#Histograma e Densidade
+g_hist = ggplot(ds.all_adj, aes(x = Nota_Geral)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  ggtitle("Histograma da Nota Geral dos alunos do ENADE") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+g_densidade = ggplot(ds.all_adj, aes(x = Nota_Geral)) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) / sum(..count..))) +
+  ggtitle("Histograma da Nota Geral dos alunos do ENADE") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+g_hist_densidade = ggplot(ds.all_adj, aes(x = Nota_Geral)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma da Nota Geral dos alunos do ENADE") +
+  xlab("Nota") +
+  ylab("Frequência relativa")
+
+grid.arrange(g_hist,
+             g_densidade,
+             g_hist_densidade,
+             nrow = 3,
+             ncol = 1)
+
+```
+
+Analisando o histograma e o gráfico de densidade nos dá um indicativo de que 
+a distribuição se assemelha à Normal. \
+
+### Teste de Normalidade (C)
+
+```{r}
+#Teste de Normalidade de Shapiro-Wilk
+#shapiro.test(ds.all_adj$Nota_Geral) #só para menos de 5 mil obs
+
+#Teste de Normalidade de Anderson_Darlin
+ad.test(ds.all_adj$Nota_Geral)
+
+```
+
+Fez-se o teste de Anderson-Darlin para se constar de que a distribuição da variável
+Nota Geral segue uma distribuição Normal, haja visto que o p-valor $\leq$ 5%. \
+Não foi usado o teste de Shapiro-Wilk neste caso pois temos mais do que 5 mil 
+observações, que é o número suportado por esse teste.
+
+
+```{r , warning=FALSE, message=FALSE}
+#-----------ITEM C
+#Summary do por curso
+tabela_3 <- ds.all_adj %>%
+  select(Curso, Nota_Geral) %>%
+  group_by(Curso) %>%
+  summarise(
+    quantidade = n(),
+    missing = quantidade - sum(!is.na(Nota_Geral)) ,
+    media = round( mean( Nota_Geral , na.rm=TRUE) , 1),
+    mediana = round( median( Nota_Geral, na.rm=TRUE) , 1),
+    moda = round( Mode(Nota_Geral, na.rm=TRUE) , 1),
+    desvio_padrao = round( sd(Nota_Geral, na.rm=TRUE) , 1),
+#    variancia = round( sd(Nota_Geral, na.rm=TRUE)^2 , 1),
+    cv = round( sd(Nota_Geral, na.rm=TRUE) / media * 100 , 1),
+    assimetria = round( skewness(Nota_Geral, na.rm=TRUE) , 1),
+    curtose = round( kurtosis(Nota_Geral, na.rm=TRUE), 1)
+  ) %>% arrange(desc(mediana))
+
+```
+
+Abaixo temos a tabela de estatísticas resumo por curso ordenado de forma 
+decrescente do valor da mediana. \
+
+```{r , warning=FALSE, message=FALSE}
+#-----------ITEM C
+#tabela
+tabela_3a <- distinct(tabela_3, Curso, .keep_all = TRUE) 
+tabela_3a %>%  kbl %>% kable_paper("hover", full_width = F)
+
+n_tb3a <- dim(tabela_3a)[1]
+tabela_3b <- tabela_3a[tabela_3a$media >= tabela_2$media,]
+n_tb3b <- dim(tabela_3b)[1]
+
+```
+
+Pode-se notar que dos `r n_tb3a ` presentes no banco de dados, somente `r n_tb3b ` 
+tiveram Nota Geral média maior ou igual que a Nota Geral média de todos os 
+cursos (`r tabela_2$media `).
+
+
+# Seleção do Curso Desejado (D)
+
+```{r}
+#-----------ITEM D
+ds.engenharia <- ds.all_adj %>% filter(CO_GRUPO == 6306)
+```
+
+O curso escolhido para esse trabalho foi o curso de **Engenharia** [*6306*].
+
+```{r , warning=FALSE, message=FALSE}
+#-----------ITEM D, E
+#Summary do por curso
+tabela_4 <- ds.engenharia %>%
+  select(Curso, Nota_Geral) %>%
+  group_by(Curso) %>%
+  summarise(
+    quantidade = n(),
+    missing = quantidade - sum(!is.na(Nota_Geral)) ,
+    media = round( mean( Nota_Geral , na.rm=TRUE) , 1),
+    mediana = round( median( Nota_Geral, na.rm=TRUE) , 1),
+    moda = round( Mode(Nota_Geral, na.rm=TRUE) , 1),
+    desvio_padrao = round( sd(Nota_Geral, na.rm=TRUE) , 1),
+#    variancia = round( sd(Nota_Geral, na.rm=TRUE)^2 , 1),
+    cv = round( sd(Nota_Geral, na.rm=TRUE) / media * 100 , 1),
+    assimetria = round( skewness(Nota_Geral, na.rm=TRUE) , 1),
+    curtose = round( kurtosis(Nota_Geral, na.rm=TRUE), 1)
+  ) %>% arrange(desc(mediana))
+
+tabela_4 %>%  kbl %>% kable_paper("hover", full_width = F)
+```
+
+## Média Amostral (D)
+
+O curso de Engenharia teve média `r tabela_4$media`. \
+
+
+## Desvio Padrão Amostral (E)
+
+O curso de Engenharia apresentou um desvio padrão de `r tabela_4$desvio_padrao`. \
+
+## Gráfico de Densidade e Histograma (F)
+
+```{r}
+#Histograma e Densidade
+g_hist1 = ggplot(ds.engenharia, aes(x = Nota_Geral)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  ggtitle("Histograma da Nota Geral dos alunos de Engenharia") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+g_densidade1 = ggplot(ds.engenharia, aes(x = Nota_Geral)) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) / sum(..count..))) +
+  ggtitle("Histograma da Nota Geral dos alunos de Engenharia") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+g_hist_densidade1 = ggplot(ds.engenharia, aes(x = Nota_Geral)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma da Nota Geral dos alunos de Engenharia") +
+  xlab("Nota") +
+  ylab("Frequência relativa")
+
+grid.arrange(g_hist1,
+             g_densidade1,
+             g_hist_densidade1,
+             nrow = 3,
+             ncol = 1)
+
+```
+
+Analisando o histograma e o gráfico de densidade nos dá um indicativo de que 
+a distribuição das Notas Geral do curso de Engenharua se assemelha a Normal. \
+
+### Teste de Normalidade (F)
+
+```{r}
+#Teste de Normalidade de Shapiro-Wilk
+#shapiro.test(ds.all_adj$Nota_Geral) #só para menos de 5 mil obs
+
+#Teste de Normalidade de Anderson_Darlin
+ad.test(ds.engenharia$Nota_Geral)
+
+```
+
+Fez-se o teste de Anderson-Darlin para se constar de que a distribuição da variável
+Nota Geral dentro do curso de Engenharia segue uma distribuição Normal, 
+haja visto que o p-valor $\leq$ 5%.
+
+### Box-Plot (F)
+
+```{r}
+#box-plot
+grafico_bp = ggplot(ds.engenharia, aes(x = Curso, y = Nota_Geral)) +
+  geom_boxplot(fill = "lightblue", outlier.color='red', outlier.fill='red') +
+  ggtitle("Gráfico de Box-plot da Nota Geral") +
+  xlab("Curso") +
+  ylab("Notas") 
+ggplotly(grafico_bp)
+```
+
+O gráfico acima mostra que existem outliers na nossa base dos alunos de Engenharia. \
+
+## Intervalo de Confiança (F)
+
+Calculamos então o Intervalo de Confiança (IC) para a média populacional 
+($\mu$) ao nível de confiança de 95%.
+$$
+  \text{IC}_{95\%} ( \mu ) = \ ?
+$$
+$$
+  \text{IC}_{95\%} ( \mu ) =
+  \bigg[ \bar X - \big( z_{\frac{\alpha}{2}} * \frac{\sigma}{\sqrt{n}} \big) \ ;
+  \bar X + \big( z_{\frac{\alpha}{2}} * \frac{\sigma}{\sqrt{n}} \big) \bigg]
+$$
+
+```{r}
+#-----------ITEM F
+mi <- mean(ds.all_adj$Nota_Geral) #media populacional
+sigma <- sd(ds.all_adj$Nota_Geral) #desvio padrão populacional
+N <- dim(ds.all_adj)[1] #tamanho da população
+alpha <- 1-0.95
+
+x_ <- mean(ds.engenharia$Nota_Geral) #média amostral
+dp <- sd(ds.engenharia$Nota_Geral) #desvio padrão amostral
+n <- dim(ds.engenharia)[1] #tamanho da amostra
+
+z <- qnorm(1 - (alpha/2) ) # distribuição acumulada até o ponto
+
+erro <- z * sigma / sqrt(n)
+
+lim_inf <- x_ - erro
+lim_sup <- x_ + erro
+
+```
+
+Nesse cenário, estamos trabalhando com todos os alunos de Engenharia que fizeram o ENADE, 
+a população são todos os alunos que fizeram ENADE e a amostra serão os Alunos do 
+curso de Engenharia. Com isso, $\mu$ e $\sigma$ são conhecidos e iguais a 
+`r round(mi,1)` e `r round(sigma,1)`. \
+Utilizando Grau de Confiança de 95%, tenho que o nível de significância é 
+$\alpha$ = 5%. \
+E com isso o Intervalo de Confiança de 95% para a média populacional é: \
+$\text{IC}_{95\%}$ ( $\mu$ ) = [ `r round(lim_inf,1)` , `r round(lim_sup,1)` ]. \
+
+Ao nível de confiança de 95% dizemos que a média populacional da Nota Geral 
+dos alunos que fizeram o ENADE deve estar entre `r round(lim_inf,1)` e
+`r round(lim_sup,1)`.\
+
+*Interpretação:* \
+Encontramos um Intervalo de Confiança de 95% para a média populacional de: \
+$\text{IC}_{95\%}$ ( $\mu$ ) = [ `r round(lim_inf,1)` , `r round(lim_sup,1)` ]. \
+Isso significa que esperamos que 95 dentre 100 vezes a média populacional esteja 
+dentro deste intervalo. Caso o intervalo não de confiança não inclua a média 
+populacional, podemos dizer que não é provável que que esse valor seja a 
+verdadeira média populacionacional. Contudo, mesmo se um certo valor estiver 
+contido no intervalo, não devemos concluir direto que a média populacional 
+é igual a esse valor específico. \
+ 
+
+## Distribuição (G)
+
+Como **n** = `r n` é maior do que 30, vamos utilizar a distribuição Normal.\
+Além disso, foi visto acima com o Gráfico de Densidade e Histograma e também com o 
+teste de Anderson-Darlin, A Nota Geral dos alunos de Engenharia segue uma 
+distribuição Normal e será essa a usada para calcular os quantis.\
+Seja *X* a variável Nota Geral do Enade para os alunos de Engenharia.\
+
+$$
+  \bar{X} \sim N( \mu , \frac{ \sigma^2}{ n }  )
+$$
+
+```{r}
+#-----------ITEM G
+grid.arrange(g_hist1,
+             g_densidade1,
+             g_hist_densidade1,
+             nrow = 3,
+             ncol = 1)
+
+#Teste de Normalidade de Shapiro-Wilk
+#shapiro.test(ds.all_adj$Nota_Geral) #só para menos de 5 mil obs
+
+#Teste de Normalidade de Anderson_Darlin
+ad.test(ds.engenharia$Nota_Geral)
+
+tabela_5 <- ds.engenharia %>%
+  select(Curso, Nota_Geral) %>%
+  group_by(Curso) %>%
+  summarise(
+    quantidade = n(),
+    media = round( mean( Nota_Geral , na.rm=TRUE) , 1),
+    mediana = round( median( Nota_Geral, na.rm=TRUE) , 1),
+    desvio_padrao = round( sd(Nota_Geral, na.rm=TRUE) , 1),
+    Q_25 = round( quantile(Nota_Geral, 0.25), 1),
+    Q_75 = round( quantile(Nota_Geral, 0.75), 1),
+    IQR = round( IQR(Nota_Geral, 0.25), 1)
+  ) %>% arrange(desc(mediana))
+
+tabela_5 %>%  kbl %>% kable_paper("hover", full_width = F)
+
+```
+
+## Item H
+
+Segundo o IC calculado, você diria que a nota dos alunos do curso escolhido foi atípica ou não? \
+
+$\text{IC}_{95\%}$ ( $\mu$ ) = [ `r round(lim_inf,1)` , `r round(lim_sup,1)` ] \
+
+$\mu$ = `r round(mi,1)` \
+$$
+  \mu \not\in \text{IC}_{95\%} ( \mu )
+$$
+
+*Interpretação:* \
+Sim, como a média da Nota Geral dos alunos que fizeam ENADE está fora do Intervalo de Confiança
+calculado utilizando os dados amostrais de Notas somente dos alunos de Engenharia, diria que
+a nota dos alunos de Engenharia são atípicas quando comparadas a de todos os que fiream ENADE.
+Mais ainda, como todo o intervalo está acima da média populacionais, podemos dizer ainda que 
+os aulos de Engenharia tem notas acima da média de todos os que fizeram ENADE.\
+
+
+## Teste de Hipóteses (I)
+
+Faça um teste de hipótese bilateral ao nível de confiança de 95% para média das 
+notas do curso escolhido, verifique se a razão para dizer que a média das notas 
+do curso escolhido é significativamente diferente da média geral das notas do ENADE,
+ao nível de confiança de 95%.
+
+$$
+   H_0: \mu_{ENADE} = \mu_{Engenharia}
+   \\
+   H_1: \mu_{ENADE} \neq \mu_{Engenharia}
+$$
+Vamos calcular o p-valor para o teste.
+
+$$
+  \text{p-valor} = 2 * P (Z_{tabelado} \geq Z_{calculado})
+$$
+
+$$
+  Z_{calculado} = \frac{\bar{X} - \mu}{\frac{ \sigma}{\sqrt{n}}}
+$$
+
+
+```{r}
+#-----------ITEM I
+#cálculo do p-valor
+mi <- mean(ds.all_adj$Nota_Geral) #media populacional
+sigma <- sd(ds.all_adj$Nota_Geral) #desvio padrão populacional
+N <- dim(ds.all_adj)[1] #tamanho da população
+alpha <- 1-0.95
+
+x_ <- mean(ds.engenharia$Nota_Geral) #média amostral
+dp <- sd(ds.engenharia$Nota_Geral) #desvio padrão amostral
+n <- dim(ds.engenharia)[1] #tamanho da amostra
+
+
+alpha <- 1 - 0.95
+z_tab <- qnorm(1 - (alpha/2) ) # distribuição acumulada até o ponto
+z_calc <- ( x_ - mi ) / (sigma / sqrt(n))
+p_valor <- pnorm(z_calc, mean=x_, sd=dp)
+
+
+```
+
+*Interpretação:* \
+Após calcular o $Z_{calculado}$, achamos p-valor = 
+`r round(p_valor, 2)` < 5% = Nível de 
+Significância. Desta forma, temos evidências para se rejeitar $H_0$ à 95% de confiança,
+ou seja, a Nota Geral dos alunos de Engenharia é significantemente diferente da Nota Geral
+de todos os alunos que fizeram o ENADE.
+
+
