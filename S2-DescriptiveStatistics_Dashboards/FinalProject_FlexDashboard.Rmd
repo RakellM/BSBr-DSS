@@ -1,0 +1,402 @@
+---
+title: "ENADE curso Engenharia"
+author: "ProjFinal Raquel Marques, Marcus Dias, Ricardo Nascimento Ferreira"
+date: "27/12/2021"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+#runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+
+# O include=FALSE serve para indicar que vamos rodar esse pedaço do codigo
+# mas nem o código nem a saída são exibidos no arquivo.
+# carregando os pacotes
+load = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "Hmisc",
+  "DescTools",
+  "esquisse",
+  "gridExtra",
+  "kableExtra",
+  "flexdashboard"
+)
+#lapply(load, install.packages, character.only = TRUE)
+lapply(load, require, character.only = TRUE)
+```
+
+```{r data}
+# carregando a base
+dataset <- read_csv2("MICRODADOS_ENADE_2017.txt")
+# Seleção das Variáveis Desejadas
+
+ds.filtered <<- dataset %>% dplyr::select(
+  NT_OBJ_FG,
+  CO_GRUPO,
+  CO_REGIAO_CURSO,
+  QE_I02,
+  CO_TURNO_GRADUACAO
+)
+
+## Seleção do Curso Desejado
+
+ds.engenharia <<- ds.filtered %>% filter(CO_GRUPO == 6306)
+
+## Transformação das Variáveis
+
+ds.engenharia <<- ds.engenharia %>% mutate(
+  Curso = case_when(
+    CO_GRUPO == 6306 ~ "Engenharia",
+    TRUE ~ "Outro"
+  )
+)
+#Nota
+ds.engenharia = ds.engenharia %>% mutate(
+  Nota = NT_OBJ_FG
+)
+#Regiao
+ds.engenharia = ds.engenharia %>% mutate(
+  Regiao = case_when(
+    CO_REGIAO_CURSO == 1 ~ "Norte",
+    CO_REGIAO_CURSO == 2 ~ "Nordeste",
+    CO_REGIAO_CURSO == 3 ~ "Sudeste",
+    CO_REGIAO_CURSO == 4 ~ "Sul",
+    CO_REGIAO_CURSO == 5 ~ "Centro-Oeste"
+  )
+)
+#Raca
+ds.engenharia = ds.engenharia %>% mutate(
+  Raca = case_when(
+    QE_I02 == "A" ~ "Branca",
+    QE_I02 == "B" ~ "Preta",
+    QE_I02 == "C" ~ "Amarela",
+    QE_I02 == "D" ~ "Parda",
+    QE_I02 == "E" ~ "Indígena",
+    QE_I02 == "F" ~ "Não quero declarar"
+  )
+)
+#Turno
+ds.engenharia = ds.engenharia %>% mutate(
+  Turno = case_when(
+    CO_TURNO_GRADUACAO == 1 ~ "Matutino",
+    CO_TURNO_GRADUACAO == 2 ~ "Vespertino",
+    CO_TURNO_GRADUACAO == 3 ~ "Integral",
+    CO_TURNO_GRADUACAO == 4 ~ "Noturno"
+  )
+)
+# Limpar Dataset
+cps = c(  "NT_OBJ_FG",
+          "CO_GRUPO",
+          "CO_REGIAO_CURSO",
+          "QE_I02",
+          "CO_TURNO_GRADUACAO")
+ds.engenharia <<- subset(ds.engenharia, select = -c(NT_OBJ_FG,
+                                                  CO_GRUPO,
+                                                  CO_REGIAO_CURSO,
+                                                  QE_I02,
+                                                  CO_TURNO_GRADUACAO) )
+## Removendo todos os NAs
+ds.eng.final = ds.engenharia %>% na.omit()
+d3 <- describe(ds.eng.final)
+
+# dataframes para análise descritiva de variáveis
+s <<- summary(ds.engenharia)
+d <<- describe(ds.engenharia)
+
+# Summary sem NA
+summary_na = ds.engenharia %>%
+  select(everything()) %>%
+  summarise_all(list(~ sum(is.na(.))))
+
+notas <<- ds.eng.final %>%
+  select(Nota) %>%
+  summarise(
+    quantidade = n(),
+    media = mean(Nota),
+    mediana = median(Nota),
+    moda = Mode(Nota),
+    cv = sd(Nota) / media * 100,
+    assimetria = skewness(Nota),
+    curtose = kurtosis(Nota)
+  ) %>% arrange(desc(mediana))
+
+# histograma Notas
+g_hist = ggplot(ds.eng.final, aes(x = Nota)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  ggtitle("Histograma da nota dos alunos de Engenharia") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+# Histograma e Densidade
+g_hist_densidade = ggplot(ds.eng.final, aes(x = Nota)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma e curva de densidade da nota dos alunos de Engenharia") +
+  xlab("Nota") +
+  ylab("Frequência relativa")
+
+#Histograma Nota por Raça e Turno
+grafico_hist.raca.turno= ggplot(ds.eng.final, aes(x = Nota, fill = Turno)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Raça e Turno") +
+  ylab("Frequência") +
+  xlab("Notas") +
+  facet_grid(~ Raca)
+
+
+#Histograma por Raça
+grafico_hist.raca= ggplot(ds.eng.final, aes(x = Nota, fill = Raca)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Raça") +
+  ylab("Frequência") +
+  xlab("Notas") +
+  guides(fill=guide_legend(title="Raça"))
+
+#Box-Plot por Raça
+grafico_bp.raca= ggplot(ds.eng.final, aes(x = Raca, y = Nota, fill = Raca)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Raça") +
+  xlab("Raça") +
+  ylab("Notas") +
+  guides(fill=guide_legend(title="Raça"))
+
+#Histograma Nota por Turno
+grafico_hist.turno= ggplot(ds.eng.final, aes(x = Nota, fill = Turno)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Turno") +
+  ylab("Frequência") +
+  xlab("Notas")
+
+
+#Box-plot Nota por Turno
+grafico_bp.turno= ggplot(ds.eng.final, aes(x = Turno, y = Nota, fill = Turno)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Turno") +
+  xlab("Turno") +
+  ylab("Notas")
+
+#Histograma por Região
+grafico_hist.regiao= ggplot(ds.eng.final, aes(x = Nota, fill = Regiao)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Região") +
+  ylab("Frequência") +
+  xlab("Notas") +  guides(fill=guide_legend(title="Região"))
+
+#Box-plot Nota por Região
+grafico_bp.regiao= ggplot(ds.eng.final, aes(x = Turno, y = Nota, fill = Regiao)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Região") +
+  xlab("Turno") +
+  ylab("Notas") +  guides(fill=guide_legend(title="Região"))
+
+#Box-plot Nota por Raça Turno
+grafico_bp.raca.turno= ggplot(ds.eng.final, aes(x = Turno, y = Nota, fill = Turno)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Raça e Turno") +
+  xlab("Turno") +
+  ylab("Notas") +
+  facet_grid(~ Raca) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  guides(fill=guide_legend(title="Turno"))
+  
+
+#Box-plot Nota por Raça Região
+grafico_bp.raca.regiao= ggplot(ds.eng.final, aes(x = Regiao, y = Nota, fill = Regiao)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Raça e Região") +
+  xlab("Raça") +
+  ylab("Notas") +
+  facet_grid(~ Raca) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  guides(fill=guide_legend(title="Região"))
+
+#Proporção de Participantes 
+proporcao.turno = (prop.table(table(ds.eng.final$Turno)) * 100)
+```
+
+Notas
+===================================== 
+
+Row {data-height=200}
+-------------------------------------
+### Observações
+```{r}
+  valueBox(notas$quantidade, icon = "fa-cube")
+```
+
+### Regiões
+```{r}
+  valueBox(d$Regiao$counts["distinct"], icon = "fa-map-signs")
+```
+
+### Turnos
+```{r}
+  valueBox(d$Turno$counts["distinct"], icon = "fa-clock-o")
+
+```
+
+### Raças
+```{r}
+  valueBox(d$Raca$counts["distinct"], icon = "fa-users")
+
+```
+
+Row {data-height=800}
+-------------------------------------
+### Histograma
+
+```{r}
+g_hist
+
+```
+
+### Densidade
+
+```{r}
+g_hist_densidade
+
+```
+
+Por Raça
+===================================== 
+Row 
+-------------------------------------
+    
+### Notas, Raça e Turno
+    
+```{r}
+ggplotly(grafico_hist.raca.turno)
+```
+   
+Row {.tabset .tabset-fade}
+-------------------------------------
+   
+### Histograma
+
+```{r}
+ggplotly(grafico_hist.raca)
+```   
+ 
+### Box-plot
+    
+```{r}
+ggplotly(grafico_bp.raca)
+```
+
+Por Turno
+===================================== 
+Row 
+-------------------------------------
+    
+### Notas, Raça e Turno
+    
+```{r}
+ggplotly(grafico_hist.raca.turno)
+```
+   
+Row {.tabset .tabset-fade}
+-------------------------------------
+   
+### Histograma
+
+```{r}
+ggplotly(grafico_hist.turno)
+```   
+ 
+### Box-plot
+    
+```{r}
+ggplotly(grafico_bp.turno)
+```
+
+Por Região
+===================================== 
+Row 
+-------------------------------------
+    
+### Notas, Raça e Turno
+    
+```{r}
+ggplotly(grafico_hist.raca.turno)
+```
+   
+Row {.tabset .tabset-fade}
+-------------------------------------
+   
+### Histograma
+
+```{r}
+ggplotly(grafico_hist.regiao)
+```   
+ 
+### Box-plot
+    
+```{r}
+ggplotly(grafico_bp.regiao)
+```
+
+Comparativo
+===================================== 
+Row {data-height=200}
+-------------------------------------
+
+### Integral
+```{r}
+rate <<- round(as.numeric(proporcao.turno["Integral"]),2)
+#proporcao.turno["Integral"]
+gauge(value = rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Matutino
+```{r}
+rate <<- round(as.numeric(proporcao.turno["Matutino"]),2)
+gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Noturno
+```{r}
+rate <<- round(as.numeric(proporcao.turno["Noturno"]),2)
+gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Vespertino
+```{r}
+rate <<- round(as.numeric(proporcao.turno["Vespertino"]),2)
+gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+   
+Row {.tabset .tabset-fade}
+-------------------------------------
+   
+### Nota x Raça x Turno
+
+```{r}
+ggplotly(grafico_bp.raca.turno)
+```   
+ 
+### Nota x Raça x Região
+    
+```{r}
+ggplotly(grafico_bp.raca.regiao)
+```

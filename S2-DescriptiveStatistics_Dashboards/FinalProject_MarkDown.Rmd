@@ -1,0 +1,447 @@
+---
+title: "Projeto Final"
+subtitle: "Estatística Descritiva e Construção de Dashboards"
+author: "Raquel Marques / Marcus Dias / Ricardo Nascimento Ferreira"
+date: "12/15/2021"
+output:
+  rmdformats::downcute
+---
+
+```{r setup, include=FALSE}
+#Verificar e setar path para pasta atual
+path_dir = getwd() #diz qual pasta está
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+#knitr::opts_knit$set(root.dir = "C:\\0. R\\Personal\\MBA\\DS\\Materia2\\MBA_ProjetoFinal_original")
+knitr::opts_knit$set(root.dir = path_dir)
+```
+
+# Projeto Final
+
+## Carregando pacotes
+
+```{r include=FALSE}
+load = c(
+  "readr",
+  "ggplot2",
+  "plotly",
+  "e1071",
+  "dplyr",
+  "Hmisc",
+  "DescTools",
+  "esquisse",
+  "gridExtra",
+  "kableExtra"
+)
+#Instalar
+# lapply(load.pks, install.packages, character.only = TRUE)
+#Carregar
+lapply(load, require, character.only = TRUE)
+```
+
+## Importação do banco do ENADE/INEP
+
+```{r}
+dataset <<- read_csv2("MICRODADOS_ENADE_2017.txt")
+```
+
+## Seleção das Variáveis Desejadas
+
+```{r}
+ds.filtered <<- dataset %>% dplyr::select(
+  NT_OBJ_FG,
+  CO_GRUPO,
+  CO_REGIAO_CURSO,
+  QE_I02,
+  CO_TURNO_GRADUACAO
+)
+```
+NT_OBJ_FG           | Quantitativa Discreta   | Nota bruta na parte objetiva da formação geral. (valor de 0 a 100)
+CO_GRUPO            | Qualitativa Nominal     | Código da área de enquadramento do curso no Enade
+CO_REGIAO_CURSO     | Qualitativa Nominal     | Código da região de funcionamento do curso
+QE_I02              | Qualitativa Nominal     | Qual é a sua cor ou raça?
+CO_TURNO_GRADUACAO  | Qualitativa Nominal     | Código do turno de graduação
+
+## Seleção do Curso Desejado
+
+```{r}
+ds.engenharia <<- ds.filtered %>% filter(CO_GRUPO == 6306)
+```
+
+## Transformação das Variáveis
+
+```{r}
+ds.engenharia <<- ds.engenharia %>% mutate(
+  Curso = case_when(
+    CO_GRUPO == 6306 ~ "Engenharia",
+    TRUE ~ "Outro"
+  )
+)
+#Nota
+ds.engenharia = ds.engenharia %>% mutate(
+  Nota = NT_OBJ_FG
+)
+#Regiao
+ds.engenharia = ds.engenharia %>% mutate(
+  Regiao = case_when(
+    CO_REGIAO_CURSO == 1 ~ "Norte",
+    CO_REGIAO_CURSO == 2 ~ "Nordeste",
+    CO_REGIAO_CURSO == 3 ~ "Sudeste",
+    CO_REGIAO_CURSO == 4 ~ "Sul",
+    CO_REGIAO_CURSO == 5 ~ "Centro-Oeste"
+  )
+)
+#Raca
+ds.engenharia = ds.engenharia %>% mutate(
+  Raca = case_when(
+    QE_I02 == "A" ~ "Branca",
+    QE_I02 == "B" ~ "Preta",
+    QE_I02 == "C" ~ "Amarela",
+    QE_I02 == "D" ~ "Parda",
+    QE_I02 == "E" ~ "Indígena",
+    QE_I02 == "F" ~ "Não quero declarar"
+  )
+)
+#Turno
+ds.engenharia = ds.engenharia %>% mutate(
+  Turno = case_when(
+    CO_TURNO_GRADUACAO == 1 ~ "Matutino",
+    CO_TURNO_GRADUACAO == 2 ~ "Vespertino",
+    CO_TURNO_GRADUACAO == 3 ~ "Integral",
+    CO_TURNO_GRADUACAO == 4 ~ "Noturno"
+  )
+)
+# Limpar Dataset
+cps = c(  "NT_OBJ_FG",
+          "CO_GRUPO",
+          "CO_REGIAO_CURSO",
+          "QE_I02",
+          "CO_TURNO_GRADUACAO")
+ds.engenharia <<- subset(ds.engenharia, select = -c(NT_OBJ_FG,
+                                                  CO_GRUPO,
+                                                  CO_REGIAO_CURSO,
+                                                  QE_I02,
+                                                  CO_TURNO_GRADUACAO) )
+
+```
+
+# Análise Descritiva das Variáveis (raw data)
+
+```{r}
+s <<- summary(ds.engenharia)
+d <<- describe(ds.engenharia)
+
+```
+
+
+## Variáveis Obrigatorias
+
+### Região
+
+```{r}
+unique(d$Regiao) %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+### Raça
+
+```{r}
+unique(d$Raca) %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+### Turno
+
+```{r}
+unique(d$Turno) %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+### Nota
+
+```{r}
+unique(d$Nota) %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+# Data Quality
+
+## Missing
+
+```{r}
+summary_na = ds.engenharia %>%
+  select(everything()) %>%
+  summarise_all(list(~ sum(is.na(.))))
+
+summary_na %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+## Removendo todos os NAs
+
+```{r}
+ds.eng.final = ds.engenharia %>% na.omit()
+d3 <- describe(ds.eng.final)
+
+#Verificando se todos os NA's foram de fato removidos
+
+summary_final.nas=ds.eng.final %>%
+  select(everything()) %>%  
+  summarise_all(list(~sum(is.na(.))))
+
+summary_final.nas %>% kbl %>% kable_material_dark(full_width = F)
+
+#Quatidade De Linhas Do Banco Original
+dim(ds.engenharia)[1]
+#Quatidade De Linhas Do Banco sem os NAS
+dim(ds.eng.final)[1]
+
+#observaçoes removidas
+dim(ds.engenharia)[1] - dim(ds.eng.final)[1]
+( dim(ds.engenharia)[1] - dim(ds.eng.final)[1] ) / dim(ds.engenharia)[1] 
+
+```
+Foram removidos em torno de **13%** do banco de dados original devido à retirada de observações faltantes.
+
+# Análise Descritiva das Variáveis (clean data)
+
+```{r}
+ds.eng.final %>%
+  select(Nota) %>%
+  summarise(
+    quantidade = n(),
+    media = mean(Nota),
+    mediana = median(Nota),
+    moda = Mode(Nota),
+    cv = sd(Nota) / media * 100,
+    assimetria = skewness(Nota),
+    curtose = kurtosis(Nota)
+  ) %>%
+  arrange(desc(mediana)) %>% 
+  kbl %>% kable_material_dark(full_width = F)
+
+#Estatísticas resumo 
+summary(ds.eng.final$Nota) 
+```
+
+
+# Gráficos de Análise Descritiva para a Variável Nota dos Alunos de Engenharia
+
+```{r}
+g_hist = ggplot(ds.eng.final, aes(x = Nota)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  ggtitle("Histograma da nota dos alunos de Engenharia") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+g_densidade = ggplot(ds.eng.final, aes(x = Nota)) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) / sum(..count..))) +
+  ggtitle("Curva de densidade da nota dos alunos de Engenharia") +
+  xlab("nota") +
+  ylab("Frequência relativa")
+
+g_hist_densidade = ggplot(ds.eng.final, aes(x = Nota)) +
+  geom_histogram(color = "black",
+                 fill = "lightblue",
+                 bins = 10,
+                 aes(y = (..count..) / sum(..count..))) +
+  geom_density(col = 2, size = 1, aes(y = 30 * (..count..) /  sum(..count..))) +
+  ggtitle("Histograma e curva de densidade da nota dos alunos de Engenharia") +
+  xlab("Nota") +
+  ylab("Frequência relativa")
+
+grid.arrange(g_hist,
+             g_densidade,
+             g_hist_densidade,
+             nrow = 3,
+             ncol = 1)
+```
+
+
+## Comparando as médias de Turno por Raça
+
+```{r}
+ds.eng.final_mod1 = ds.eng.final %>%
+  select(Raca, Nota, Turno) %>%
+  group_by(Turno, Raca) %>%
+  summarise(
+    quantidade = n(),
+    media = mean(Nota, na.rm = T),
+    mediana = median(Nota, na.rm = T),
+    cv = sd(Nota, na.rm = T) / media * 100,
+    amplitude_interquartil = IQR(Nota)
+  ) %>%
+  arrange(desc(mediana))
+
+```
+
+
+```{r , echo=FALSE}
+ds.eng.final_mod1[ds.eng.final_mod1$Turno == "Vespertino",] %>% 
+  kbl %>% kable_material_dark(full_width = F)
+
+ds.eng.final_mod1[ds.eng.final_mod1$Turno == "Matutino",] %>% 
+  kbl %>% kable_material_dark(full_width = F)
+
+ds.eng.final_mod1[ds.eng.final_mod1$Turno == "Integral",] %>% 
+  kbl %>% kable_material_dark(full_width = F)
+
+ds.eng.final_mod1[ds.eng.final_mod1$Turno == "Noturno",] %>% 
+  kbl %>% kable_material_dark(full_width = F)
+```
+
+## Tabulação Cruzada
+
+```{r}
+#Tabulação cruzada
+table(ds.eng.final$Turno,
+      ds.eng.final$Raca) %>% 
+  kbl %>% kable_material_dark(full_width = F)
+
+#Tabulaçãoo cruzada proporção
+prop.table(table(
+  ds.eng.final$Turno,
+  ds.eng.final$Raca
+)) %>% 
+  kbl %>% kable_material_dark(full_width = F)
+```
+Nota-se que 50% dos alunos de Engenharia são de brancos, com 32% estudando em turno Integral e 18% no turno Noturno.
+
+```{r}
+#assimetria e curtose - Turno
+ds.eng.final_mod2 = ds.eng.final %>% 
+  select(Turno,Nota,Raca) %>% 
+  group_by(Turno) %>% 
+  #filter(raca=="Branca") %>% 
+  summarise(  quantidade=n(),
+              media = mean(Nota),
+              mediana = median(Nota),
+              cv=sd(Nota)/media*100,
+              amplitude_interquartil=IQR(Nota),
+              assimetria=skewness(Nota),
+              curtose=kurtosis(Nota)
+  ) %>% 
+  
+  arrange(desc(cv))
+
+ds.eng.final_mod2  %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+```{r}
+#assimetria e curtose - Raca
+ds.eng.final_mod3 = ds.eng.final %>% 
+  select(Turno,Nota,Raca) %>% 
+  group_by(Raca) %>% 
+  #filter(raca=="Branca") %>% 
+  summarise(  quantidade=n(),
+              media = mean(Nota),
+              mediana = median(Nota),
+              cv=sd(Nota)/media*100,
+              amplitude_interquartil=IQR(Nota),
+              assimetria=skewness(Nota),
+              curtose=kurtosis(Nota)
+  ) %>% 
+  
+  arrange(desc(cv))
+
+ds.eng.final_mod3  %>% kbl %>% kable_material_dark(full_width = F)
+```
+
+
+# Gráficos adicionais
+## Histogramas
+```{r}
+#Histograma
+grafico_hist.turno= ggplot(ds.eng.final, aes(x = Nota, fill = Turno)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Turno") +
+  ylab("Frequência") +
+  xlab("Notas")
+ggplotly(grafico_hist.turno)
+
+grafico_hist.raca= ggplot(ds.eng.final, aes(x = Nota, fill = Raca)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Raça") +
+  ylab("Frequência") +
+  xlab("Notas") +
+  guides(fill=guide_legend(title="Raça"))
+ggplotly(grafico_hist.raca)
+
+grafico_hist.raca.turno= ggplot(ds.eng.final, aes(x = Nota, fill = Turno)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Gráfico de Histograma da Nota por Raça e Turno") +
+  ylab("Frequência") +
+  xlab("Notas") +
+  facet_grid(~ Raca) +
+  guides(fill=guide_legend(title="Raça"))
+ggplotly(grafico_hist.raca.turno)
+```
+Esse gráfico nos permite ver que a frequência de alunos de raça branca é muito maior do que as demais, sendo a parda a segunda maior em frequencia.
+
+## BoxSplots
+
+```{r}
+grafico_bp.raca= ggplot(ds.eng.final, aes(x = Raca, y = Nota, fill = Raca)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Raça") +
+  xlab("Raça") +
+  ylab("Notas") +
+  guides(fill=guide_legend(title="Raça"))
+ggplotly(grafico_bp.raca)
+```
+Nota-se que a média de notas por raça dos alunos de Engenharia é praticamente a mesma, contudo, alunos brancos e amarelos possuem uma variação de nota menor comparado aos pardos e negros. Baseado neste gráfico, poseria se desconfiar que os alunos brancos devem ter notas um pouco maiores do que os alunos negros.
+
+```{r}
+grafico_bp.turno= ggplot(ds.eng.final, aes(x = Turno, y = Nota, fill = Turno)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Turno") +
+  xlab("Turno") +
+  ylab("Notas")
+ggplotly(grafico_bp.turno)
+```
+Nota-se que os alunos que cursam Engenharia no turno Integral e Matutino possuem média de notas mais altas e um variação de notas menor do que os que que estudam à noite. Os alunos que estudam à tarde possuem uma distribuição semelhante àquelas que estudam de manhã ou integral, mas as notas são, em geral, menores do que a dos demais turnos. Pode-se então desconfiar que os alunos da manhã e integral vão ter notas maiores do que os que estudam tarde ou noite.
+
+```{r}
+grafico_bp.raca.turno= ggplot(ds.eng.final, aes(x = Turno, y = Nota, fill = Turno)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Raça e Turno") +
+  xlab("Turno") +
+  ylab("Notas") +
+  facet_grid(~ Raca) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  guides(fill=guide_legend(title="Turno"))
+ggplotly(grafico_bp.raca.turno)
+```
+
+
+
+
+```{r}
+grafico_bp.raca.regiao= ggplot(ds.eng.final, aes(x = Regiao, y = Nota, fill = Regiao)) +
+  geom_boxplot() +
+  ggtitle("Gráfico de Box-plot da Nota por Raça e Região") +
+  xlab("Região") +
+  ylab("Notas") +
+  facet_grid(~ Raca) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  guides(fill=guide_legend(title="Região"))
+ggplotly(grafico_bp.raca.regiao)
+
+```
+
+
+# Conclusões
+* Considerando observações de Nota sem NA *(d_sem_NA$Nota)*, 25% das observações tiraram nota até 50.0, 50% das observações tiraram nota até 59.5 e 25% tiraram nota superior a 75.0;\
+* Centro-Oeste tem a menor particiação no Enade em questão;\
+* Indigenas tem a menor participação;\
+* Turno Vespertino foi o menos procurado;\
+* Brancos são mais presentes no Enade;\
+* Brancos e Amarelos tem desempenho similar e ambos tem melhores notas que Indígenas;\
+* Amarelos e Indigenas são os menos presentes no Enad;\
+* Os Turnos mais procurados são Integral e Noturno;\
+* O Turno Matutino tem média de Notas superior ao Turno Noturno;\
+* A média de Notas dos Turnos Integral e Matunino São similares;\
+* Raça Preta tem média de notas melhores na Região Sul;
+
+
+
+
+
