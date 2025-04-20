@@ -1,4 +1,5 @@
 *.sql linguist-detectable=true
 *.sql linguist-language=sql
 *.[Rr]md linguist-language=R
+*.html linguist-detectable=false
 
