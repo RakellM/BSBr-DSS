@@ -2,4 +2,5 @@
 *.sql linguist-language=sql
 *.[Rr]md linguist-language=R
 *.html linguist-detectable=false
+*.ipynb linguist-language=py
 
